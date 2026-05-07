@@ -1,0 +1,237 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useWatchlist, type WatchlistItem } from "@/lib/watchlist";
+
+type Quote = {
+  price: number;
+  currency: string;
+  symbol: string;
+  previousClose: number | null;
+};
+type QuotesResponse = { quotes: Record<string, Quote | null> };
+
+const currencyFmt = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  maximumFractionDigits: 2,
+});
+
+export default function WatchlistPage() {
+  const { items, remove, mounted } = useWatchlist();
+
+  const [quotes, setQuotes] = useState<Record<string, Quote | null>>({});
+  const [quotesLoading, setQuotesLoading] = useState(false);
+  const [quotesError, setQuotesError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!mounted || items.length === 0) return;
+    const tickers = Array.from(new Set(items.map((i) => i.ticker)));
+    let cancelled = false;
+    setQuotesLoading(true);
+    setQuotesError(null);
+    (async () => {
+      try {
+        const res = await fetch(
+          `/api/quotes?tickers=${encodeURIComponent(tickers.join(","))}`,
+        );
+        const data = (await res.json()) as QuotesResponse;
+        if (cancelled) return;
+        setQuotes(data.quotes ?? {});
+      } catch (e) {
+        if (cancelled) return;
+        setQuotesError(
+          e instanceof Error ? e.message : "Failed to fetch live prices",
+        );
+      } finally {
+        if (!cancelled) setQuotesLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [mounted, items]);
+
+  // Sort newest-first within the page
+  const sorted = [...items].sort((a, b) =>
+    a.addedAt < b.addedAt ? 1 : a.addedAt > b.addedAt ? -1 : 0,
+  );
+
+  return (
+    <div className="space-y-6">
+      <header>
+        <h1 className="text-2xl font-semibold tracking-tight">Watchlist</h1>
+        <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
+          Tickers you&apos;ve starred from political and insider trade signals.
+          Live prices via Yahoo Finance.
+        </p>
+      </header>
+
+      {quotesError && (
+        <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+          Live price fetch failed: {quotesError}
+        </div>
+      )}
+
+      {!mounted ? (
+        <LoadingGrid />
+      ) : items.length === 0 ? (
+        <EmptyState />
+      ) : (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {sorted.map((item) => (
+            <WatchCard
+              key={item.ticker}
+              item={item}
+              quote={quotes[item.ticker] ?? null}
+              loading={quotesLoading && !(item.ticker in quotes)}
+              onRemove={() => remove(item.ticker)}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function WatchCard({
+  item,
+  quote,
+  loading,
+  onRemove,
+}: {
+  item: WatchlistItem;
+  quote: Quote | null;
+  loading: boolean;
+  onRemove: () => void;
+}) {
+  const change =
+    quote && quote.previousClose && quote.previousClose > 0
+      ? quote.price - quote.previousClose
+      : null;
+  const changePct =
+    change !== null && quote?.previousClose
+      ? (change / quote.previousClose) * 100
+      : null;
+
+  const tone =
+    change === null ? "neutral" : change > 0 ? "up" : change < 0 ? "down" : "neutral";
+
+  return (
+    <div className="flex flex-col rounded-lg border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900">
+      <div className="flex items-start justify-between gap-3">
+        <div className="font-mono text-lg font-semibold tracking-tight">
+          {item.ticker}
+        </div>
+        <button
+          type="button"
+          onClick={onRemove}
+          aria-label={`Remove ${item.ticker} from watchlist`}
+          title="Remove from watchlist"
+          className="rounded-md p-1 text-neutral-400 hover:bg-red-50 hover:text-red-600 dark:text-neutral-500 dark:hover:bg-red-950/40 dark:hover:text-red-400"
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
+            <path
+              d="M4 4l8 8M12 4l-8 8"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+            />
+          </svg>
+        </button>
+      </div>
+
+      <div className="mt-3">
+        {loading ? (
+          <>
+            <div className="h-7 w-24 animate-pulse rounded bg-neutral-200 dark:bg-neutral-800" />
+            <div className="mt-2 h-4 w-16 animate-pulse rounded bg-neutral-200 dark:bg-neutral-800" />
+          </>
+        ) : quote ? (
+          <>
+            <div className="text-2xl font-semibold">
+              {currencyFmt.format(quote.price)}
+            </div>
+            <div
+              className={`mt-1 text-sm font-medium ${
+                tone === "up"
+                  ? "text-emerald-600 dark:text-emerald-400"
+                  : tone === "down"
+                    ? "text-red-600 dark:text-red-400"
+                    : "text-neutral-500 dark:text-neutral-400"
+              }`}
+            >
+              {change !== null && changePct !== null ? (
+                <>
+                  {change >= 0 ? "+" : ""}
+                  {currencyFmt.format(change)}{" "}
+                  <span className="font-mono">
+                    ({changePct >= 0 ? "+" : ""}
+                    {changePct.toFixed(2)}%)
+                  </span>
+                </>
+              ) : (
+                "—"
+              )}
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="text-2xl font-semibold text-neutral-400 dark:text-neutral-600">
+              —
+            </div>
+            <div className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
+              Quote unavailable
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function EmptyState() {
+  return (
+    <div className="rounded-lg border border-dashed border-neutral-300 bg-white p-12 text-center dark:border-neutral-700 dark:bg-neutral-900">
+      <div className="mx-auto inline-flex h-12 w-12 items-center justify-center text-neutral-300 dark:text-neutral-600">
+        <svg
+          width="48"
+          height="48"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+          aria-hidden
+        >
+          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+        </svg>
+      </div>
+      <h3 className="mt-4 text-base font-semibold">Your watchlist is empty</h3>
+      <p className="mx-auto mt-1 max-w-md text-sm text-neutral-500 dark:text-neutral-400">
+        Click the star icon next to any row on the{" "}
+        <span className="font-medium">Political Trades</span> or{" "}
+        <span className="font-medium">SEC Insider Trades</span> page to add a
+        ticker here.
+      </p>
+    </div>
+  );
+}
+
+function LoadingGrid() {
+  return (
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      {Array.from({ length: 4 }).map((_, i) => (
+        <div
+          key={i}
+          className="rounded-lg border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900"
+        >
+          <div className="h-5 w-20 animate-pulse rounded bg-neutral-200 dark:bg-neutral-800" />
+          <div className="mt-4 h-7 w-24 animate-pulse rounded bg-neutral-200 dark:bg-neutral-800" />
+          <div className="mt-2 h-4 w-16 animate-pulse rounded bg-neutral-200 dark:bg-neutral-800" />
+        </div>
+      ))}
+    </div>
+  );
+}

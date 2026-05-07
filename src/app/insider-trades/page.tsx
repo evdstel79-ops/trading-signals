@@ -1,14 +1,39 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { InsiderTrade } from "@/app/api/insider-trades/route";
+import type { InsiderTrade } from "@/lib/insiderSignals";
 import TradeModal from "@/components/TradeModal";
+import WatchlistButton from "@/components/WatchlistButton";
 import type { PaperTradeDirection } from "@/lib/paperTrades";
+import { useWatchlist } from "@/lib/watchlist";
 
 type ApiResponse = { trades: InsiderTrade[] } | { error: string };
 type Side = InsiderTrade["transactionType"];
 
 type ModalSignal = { ticker: string; direction: PaperTradeDirection };
+
+type SortDir = "asc" | "desc";
+type SortColId =
+  | "filedAt"
+  | "insiderName"
+  | "companyName"
+  | "ticker"
+  | "transactionType"
+  | "shares"
+  | "value";
+
+const SORTERS: Record<
+  SortColId,
+  { get: (t: InsiderTrade) => string | number; defaultDir: SortDir }
+> = {
+  filedAt: { get: (t) => t.filedAt, defaultDir: "desc" },
+  insiderName: { get: (t) => t.insiderName.toLowerCase(), defaultDir: "asc" },
+  companyName: { get: (t) => t.companyName.toLowerCase(), defaultDir: "asc" },
+  ticker: { get: (t) => t.ticker, defaultDir: "asc" },
+  transactionType: { get: (t) => t.transactionType, defaultDir: "asc" },
+  shares: { get: (t) => t.shares, defaultDir: "desc" },
+  value: { get: (t) => t.value, defaultDir: "desc" },
+};
 
 const numberFmt = new Intl.NumberFormat("en-US");
 const currencyFmt = new Intl.NumberFormat("en-US", {
@@ -21,33 +46,39 @@ export default function InsiderTradesPage() {
   const [trades, setTrades] = useState<InsiderTrade[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   const [search, setSearch] = useState("");
   const [sides, setSides] = useState<Set<Side>>(new Set());
   const [modalSignal, setModalSignal] = useState<ModalSignal | null>(null);
+  const [sort, setSort] = useState<{ col: SortColId; dir: SortDir }>({
+    col: "filedAt",
+    dir: "desc",
+  });
+  const { isWatched, toggle: toggleWatch } = useWatchlist();
+
+  async function load(isRefresh: boolean) {
+    if (isRefresh) setRefreshing(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/insider-trades", { cache: "no-store" });
+      const data = (await res.json()) as ApiResponse;
+      if (!res.ok || "error" in data) {
+        setError("error" in data ? data.error : `Request failed: ${res.status}`);
+        return;
+      }
+      setTrades(data.trades);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to load trades");
+    } finally {
+      if (isRefresh) setRefreshing(false);
+      else setLoading(false);
+    }
+  }
 
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch("/api/insider-trades");
-        const data = (await res.json()) as ApiResponse;
-        if (cancelled) return;
-        if (!res.ok || "error" in data) {
-          setError("error" in data ? data.error : `Request failed: ${res.status}`);
-          return;
-        }
-        setTrades(data.trades);
-      } catch (e) {
-        if (cancelled) return;
-        setError(e instanceof Error ? e.message : "Failed to load trades");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+    load(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const filtered = useMemo(() => {
@@ -62,6 +93,27 @@ export default function InsiderTradesPage() {
       return true;
     });
   }, [trades, search, sides]);
+
+  const sorted = useMemo(() => {
+    if (!filtered) return null;
+    const get = SORTERS[sort.col].get;
+    const mult = sort.dir === "asc" ? 1 : -1;
+    return [...filtered].sort((a, b) => {
+      const av = get(a);
+      const bv = get(b);
+      if (av < bv) return -1 * mult;
+      if (av > bv) return 1 * mult;
+      return 0;
+    });
+  }, [filtered, sort]);
+
+  function handleSort(col: SortColId) {
+    setSort((prev) =>
+      prev.col === col
+        ? { col, dir: prev.dir === "asc" ? "desc" : "asc" }
+        : { col, dir: SORTERS[col].defaultDir },
+    );
+  }
 
   const filtersActive = search.length > 0 || sides.size > 0;
 
@@ -121,8 +173,14 @@ export default function InsiderTradesPage() {
         </div>
 
         {trades && (
-          <div className="mt-3 text-xs text-neutral-500 dark:text-neutral-400">
-            Showing {filtered?.length ?? 0} of {trades.length} trades
+          <div className="mt-3 flex items-center justify-between gap-3">
+            <div className="text-xs text-neutral-500 dark:text-neutral-400">
+              Showing {filtered?.length ?? 0} of {trades.length} trades
+            </div>
+            <RefreshButton
+              refreshing={refreshing}
+              onClick={() => load(true)}
+            />
           </div>
         )}
       </div>
@@ -131,13 +189,13 @@ export default function InsiderTradesPage() {
         <table className="w-full text-left text-sm">
           <thead className="border-b border-neutral-200 bg-neutral-50 text-xs uppercase tracking-wide text-neutral-500 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-400">
             <tr>
-              <th className="px-4 py-3 font-medium">Filed</th>
-              <th className="px-4 py-3 font-medium">Insider</th>
-              <th className="px-4 py-3 font-medium">Company</th>
-              <th className="px-4 py-3 font-medium">Ticker</th>
-              <th className="px-4 py-3 font-medium">Side</th>
-              <th className="px-4 py-3 text-right font-medium">Shares</th>
-              <th className="px-4 py-3 text-right font-medium">Value</th>
+              <SortableTh col="filedAt" label="Filed" sort={sort} onSort={handleSort} />
+              <SortableTh col="insiderName" label="Insider" sort={sort} onSort={handleSort} />
+              <SortableTh col="companyName" label="Company" sort={sort} onSort={handleSort} />
+              <SortableTh col="ticker" label="Ticker" sort={sort} onSort={handleSort} />
+              <SortableTh col="transactionType" label="Side" sort={sort} onSort={handleSort} />
+              <SortableTh col="shares" label="Shares" sort={sort} onSort={handleSort} align="right" />
+              <SortableTh col="value" label="Value" sort={sort} onSort={handleSort} align="right" />
               <th className="px-4 py-3" />
             </tr>
           </thead>
@@ -155,7 +213,7 @@ export default function InsiderTradesPage() {
                 </td>
               </tr>
             )}
-            {!loading && !error && filtered && filtered.length === 0 && (
+            {!loading && !error && sorted && sorted.length === 0 && (
               <tr>
                 <td
                   colSpan={8}
@@ -169,7 +227,7 @@ export default function InsiderTradesPage() {
             )}
             {!loading &&
               !error &&
-              filtered?.map((t, i) => (
+              sorted?.map((t, i) => (
                 <tr
                   key={`${t.filingUrl}-${i}`}
                   className="hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
@@ -194,13 +252,20 @@ export default function InsiderTradesPage() {
                     {t.value ? currencyFmt.format(t.value) : "—"}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <TradeButton
-                      ticker={t.ticker}
-                      direction={
-                        t.transactionType === "sell" ? "sell" : "buy"
-                      }
-                      onClick={(signal) => setModalSignal(signal)}
-                    />
+                    <div className="inline-flex items-center gap-1">
+                      <WatchlistButton
+                        ticker={t.ticker}
+                        watched={isWatched(t.ticker)}
+                        onToggle={toggleWatch}
+                      />
+                      <TradeButton
+                        ticker={t.ticker}
+                        direction={
+                          t.transactionType === "sell" ? "sell" : "buy"
+                        }
+                        onClick={(signal) => setModalSignal(signal)}
+                      />
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -217,6 +282,72 @@ export default function InsiderTradesPage() {
         />
       )}
     </div>
+  );
+}
+
+function RefreshButton({
+  refreshing,
+  onClick,
+}: {
+  refreshing: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={refreshing}
+      className="inline-flex items-center gap-1.5 rounded-md border border-neutral-200 bg-white px-2.5 py-1 text-xs font-medium text-neutral-700 transition-colors hover:border-emerald-500 hover:bg-emerald-50 hover:text-emerald-700 disabled:cursor-not-allowed disabled:opacity-60 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:border-emerald-600 dark:hover:bg-emerald-950/40 dark:hover:text-emerald-300"
+      aria-label={refreshing ? "Refreshing" : "Refresh"}
+    >
+      <svg
+        className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`}
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden
+      >
+        <path d="M21 12a9 9 0 1 1-3-6.7" />
+        <path d="M21 4v5h-5" />
+      </svg>
+      <span>{refreshing ? "Refreshing…" : "Refresh"}</span>
+    </button>
+  );
+}
+
+function SortableTh({
+  col,
+  label,
+  sort,
+  onSort,
+  align = "left",
+}: {
+  col: SortColId;
+  label: string;
+  sort: { col: SortColId; dir: SortDir };
+  onSort: (col: SortColId) => void;
+  align?: "left" | "right";
+}) {
+  const active = sort.col === col;
+  return (
+    <th className={`px-4 py-3 font-medium ${align === "right" ? "text-right" : ""}`}>
+      <button
+        type="button"
+        onClick={() => onSort(col)}
+        className={`inline-flex items-center gap-1 uppercase tracking-wide transition-colors hover:text-neutral-700 dark:hover:text-neutral-200 ${
+          active ? "text-neutral-700 dark:text-neutral-200" : ""
+        }`}
+        aria-sort={active ? (sort.dir === "asc" ? "ascending" : "descending") : "none"}
+      >
+        <span>{label}</span>
+        <span className="inline-block w-2 text-center text-[10px] leading-none">
+          {active ? (sort.dir === "asc" ? "▲" : "▼") : ""}
+        </span>
+      </button>
+    </th>
   );
 }
 

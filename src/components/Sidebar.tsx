@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import ThemeToggle from "@/components/ThemeToggle";
 
 type NavItem = {
   href: string;
@@ -24,6 +25,11 @@ const navItems: NavItem[] = [
     href: "/insider-trades",
     label: "SEC Insider Trades",
     description: "Form 4 filings from corporate insiders",
+  },
+  {
+    href: "/watchlist",
+    label: "Watchlist",
+    description: "Starred tickers + live prices",
   },
   {
     href: "/paper-trading",
@@ -81,8 +87,9 @@ export default function Sidebar() {
         </ul>
       </nav>
 
-      <div className="border-t border-neutral-200 px-6 py-4 text-xs text-neutral-500 dark:border-neutral-800 dark:text-neutral-400">
-        v0.1.0
+      <div className="flex items-center justify-between border-t border-neutral-200 px-6 py-4 text-xs text-neutral-500 dark:border-neutral-800 dark:text-neutral-400">
+        <ThemeToggle />
+        <span>v0.1.0</span>
       </div>
     </aside>
   );
