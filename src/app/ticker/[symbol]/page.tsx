@@ -17,6 +17,7 @@ import {
   type HistoryPoint,
   type HistoryRange,
 } from "@/lib/tickerHistory";
+import { fetchTickerNews, type NewsItem } from "@/lib/tickerNews";
 
 export const revalidate = 300;
 
@@ -38,10 +39,11 @@ export default async function TickerPage({
   const ticker = decodeURIComponent(raw).toUpperCase();
   if (!ticker || !/^[A-Z][A-Z0-9.\-]*$/.test(ticker)) notFound();
 
-  const [quotesRes, historyRes, politicalRes, insiderRes] =
+  const [quotesRes, historyRes, newsRes, politicalRes, insiderRes] =
     await Promise.allSettled([
       fetchQuotes([ticker]),
       fetchTickerHistory(ticker, INITIAL_RANGE),
+      fetchTickerNews(ticker),
       fetchPoliticalTrades(),
       fetchInsiderTrades(),
     ]);
@@ -50,6 +52,7 @@ export default async function TickerPage({
     quotesRes.status === "fulfilled" ? quotesRes.value[ticker] ?? null : null;
   const history: HistoryPoint[] =
     historyRes.status === "fulfilled" ? historyRes.value : [];
+  const news: NewsItem[] = newsRes.status === "fulfilled" ? newsRes.value : [];
   const politicalAll: PoliticalTrade[] =
     politicalRes.status === "fulfilled" ? politicalRes.value : [];
   const insiderAll: InsiderTrade[] =
@@ -143,10 +146,81 @@ export default async function TickerPage({
         trades={tradeMarkers}
       />
 
+      <NewsSection items={news} />
+
       <PoliticalTradesTable trades={political} />
       <InsiderTradesTable trades={insider} />
     </div>
   );
+}
+
+function NewsSection({ items }: { items: NewsItem[] }) {
+  return (
+    <section>
+      <h2 className="mb-3 text-base font-semibold">
+        Recent news ({items.length})
+      </h2>
+      {items.length === 0 ? (
+        <div className="rounded-lg border border-neutral-200 bg-white p-6 text-center text-sm text-neutral-500 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-400">
+          No recent news for this ticker.
+        </div>
+      ) : (
+        <ul className="space-y-2">
+          {items.map((item) => (
+            <li key={item.id}>
+              <a
+                href={item.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex gap-3 rounded-lg border border-neutral-200 bg-white p-3 transition-colors hover:border-emerald-500 hover:bg-emerald-50/30 dark:border-neutral-800 dark:bg-neutral-900 dark:hover:border-emerald-600 dark:hover:bg-emerald-950/20"
+              >
+                {item.thumbnail && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={item.thumbnail}
+                    alt=""
+                    width={64}
+                    height={64}
+                    loading="lazy"
+                    className="h-16 w-16 shrink-0 rounded-md object-cover"
+                  />
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="line-clamp-2 text-sm font-medium leading-snug">
+                    {item.title}
+                  </div>
+                  <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-neutral-500 dark:text-neutral-400">
+                    <span className="font-medium text-neutral-700 dark:text-neutral-300">
+                      {item.publisher || "Yahoo Finance"}
+                    </span>
+                    {item.publishedAt && <span>· {formatRelative(item.publishedAt)}</span>}
+                  </div>
+                </div>
+              </a>
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function formatRelative(iso: string): string {
+  const ts = Date.parse(iso);
+  if (!Number.isFinite(ts)) return "";
+  const diffMs = Date.now() - ts;
+  const min = Math.round(diffMs / 60_000);
+  if (min < 1) return "just now";
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.round(min / 60);
+  if (hr < 24) return `${hr}h ago`;
+  const d = Math.round(hr / 24);
+  if (d < 30) return `${d}d ago`;
+  return new Date(ts).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 }
 
 function PoliticalTradesTable({ trades }: { trades: PoliticalTrade[] }) {
