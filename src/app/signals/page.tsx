@@ -94,6 +94,8 @@ export default async function SignalsPage() {
     return b.tradesCount - a.tradesCount;
   });
 
+  const maxScore = ranked[0]?.score.score ?? 0;
+
   const lastUpdated = new Date().toLocaleString("en-US", {
     dateStyle: "medium",
     timeStyle: "short",
@@ -156,6 +158,7 @@ export default async function SignalsPage() {
                 <td className="px-4 py-3">
                   <ScoreBar
                     score={r.score.score}
+                    maxScore={maxScore}
                     direction={r.score.direction}
                   />
                 </td>
@@ -196,9 +199,11 @@ export default async function SignalsPage() {
 
 function ScoreBar({
   score,
+  maxScore,
   direction,
 }: {
   score: number;
+  maxScore: number;
   direction: SignalScore["direction"];
 }) {
   const fillColor =
@@ -213,12 +218,13 @@ function ScoreBar({
       : direction === "bearish"
         ? "text-red-700 dark:text-red-300"
         : "text-neutral-600 dark:text-neutral-400";
+  const widthPct = maxScore > 0 ? (score / maxScore) * 100 : 0;
   return (
     <div className="flex items-center gap-2">
       <div className="relative h-2 w-32 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-800">
         <div
           className={`h-full ${fillColor}`}
-          style={{ width: `${Math.min(100, score)}%` }}
+          style={{ width: `${widthPct}%` }}
         />
       </div>
       <span
