@@ -6,6 +6,7 @@ import ExportButton from "@/components/ExportButton";
 import TradeModal from "@/components/TradeModal";
 import WatchlistButton from "@/components/WatchlistButton";
 import type { PaperTradeDirection } from "@/lib/paperTrades";
+import { useSectors } from "@/lib/sectorData";
 import { useWatchlist } from "@/lib/watchlist";
 
 type ApiResponse = { trades: PoliticalTrade[] } | { error: string };
@@ -47,6 +48,7 @@ export default function PoliticalTradesPage() {
   const [parties, setParties] = useState<Set<Party>>(new Set());
   const [chambers, setChambers] = useState<Set<Chamber>>(new Set());
   const [sides, setSides] = useState<Set<Side>>(new Set());
+  const [sector, setSector] = useState<string>("");
   const [modalSignal, setModalSignal] = useState<ModalSignal | null>(null);
   const [sort, setSort] = useState<{ col: SortColId; dir: SortDir }>({
     col: "filedAt",
@@ -80,6 +82,18 @@ export default function PoliticalTradesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const tickerList = useMemo(
+    () => trades?.map((t) => t.ticker).filter(Boolean) ?? [],
+    [trades],
+  );
+  const { sectors } = useSectors(tickerList);
+
+  const availableSectors = useMemo(() => {
+    const set = new Set<string>();
+    for (const s of sectors.values()) if (s) set.add(s);
+    return Array.from(set).sort();
+  }, [sectors]);
+
   const filtered = useMemo(() => {
     if (!trades) return null;
     const q = search.trim().toLowerCase();
@@ -88,9 +102,13 @@ export default function PoliticalTradesPage() {
       if (parties.size > 0 && !parties.has(t.party)) return false;
       if (chambers.size > 0 && !chambers.has(t.chamber)) return false;
       if (sides.size > 0 && !sides.has(t.transactionType)) return false;
+      if (sector) {
+        const s = sectors.get(t.ticker.toUpperCase()) ?? null;
+        if (s !== sector) return false;
+      }
       return true;
     });
-  }, [trades, search, parties, chambers, sides]);
+  }, [trades, search, parties, chambers, sides, sector, sectors]);
 
   const sorted = useMemo(() => {
     if (!filtered) return null;
@@ -117,13 +135,15 @@ export default function PoliticalTradesPage() {
     search.length > 0 ||
     parties.size > 0 ||
     chambers.size > 0 ||
-    sides.size > 0;
+    sides.size > 0 ||
+    sector !== "";
 
   function clearFilters() {
     setSearch("");
     setParties(new Set());
     setChambers(new Set());
     setSides(new Set());
+    setSector("");
   }
 
   return (
@@ -203,6 +223,12 @@ export default function PoliticalTradesPage() {
               Sell
             </ToggleButton>
           </ToggleGroup>
+
+          <SectorSelect
+            value={sector}
+            onChange={setSector}
+            options={availableSectors}
+          />
 
           {filtersActive && (
             <button
@@ -339,6 +365,36 @@ export default function PoliticalTradesPage() {
           onClose={() => setModalSignal(null)}
         />
       )}
+    </div>
+  );
+}
+
+function SectorSelect({
+  value,
+  onChange,
+  options,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  options: string[];
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-xs uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+        Sector
+      </span>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="rounded-md border border-neutral-200 bg-white px-2 py-1.5 text-xs font-medium text-neutral-700 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300"
+      >
+        <option value="">All sectors</option>
+        {options.map((s) => (
+          <option key={s} value={s}>
+            {s}
+          </option>
+        ))}
+      </select>
     </div>
   );
 }

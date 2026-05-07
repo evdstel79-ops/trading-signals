@@ -1,7 +1,9 @@
 "use client";
 
+import { useMemo } from "react";
 import ExportButton from "@/components/ExportButton";
 import WatchlistButton from "@/components/WatchlistButton";
+import { useSectors } from "@/lib/sectorData";
 import { useWatchlist } from "@/lib/watchlist";
 import type { SignalScore } from "@/lib/signalScoring";
 
@@ -23,8 +25,12 @@ export default function SignalsTable({
 }) {
   const { isWatched, toggle } = useWatchlist();
 
+  const tickerList = useMemo(() => ranked.map((r) => r.ticker), [ranked]);
+  const { sectors } = useSectors(tickerList);
+
   const exportData = ranked.map((r) => ({
     ticker: r.ticker,
+    sector: sectors.get(r.ticker) ?? "",
     score: r.score.score,
     direction: r.score.direction,
     unique_traders: r.score.uniqueTraders,
@@ -45,6 +51,7 @@ export default function SignalsTable({
           <tr>
             <th className="px-4 py-3 font-medium">#</th>
             <th className="px-4 py-3 font-medium">Ticker</th>
+            <th className="px-4 py-3 font-medium">Sector</th>
             <th className="px-4 py-3 font-medium">Score</th>
             <th className="px-4 py-3 font-medium">Direction</th>
             <th className="px-4 py-3 text-right font-medium">Traders</th>
@@ -57,7 +64,7 @@ export default function SignalsTable({
           {ranked.length === 0 && (
             <tr>
               <td
-                colSpan={8}
+                colSpan={9}
                 className="px-4 py-12 text-center text-sm text-neutral-500 dark:text-neutral-400"
               >
                 No signals available right now.
@@ -74,6 +81,11 @@ export default function SignalsTable({
               </td>
               <td className="px-4 py-3 font-mono text-sm font-semibold">
                 {r.ticker}
+              </td>
+              <td className="px-4 py-3 text-xs text-neutral-600 dark:text-neutral-400">
+                {sectors.get(r.ticker) ?? (
+                  <span className="text-neutral-400 dark:text-neutral-600">—</span>
+                )}
               </td>
               <td className="px-4 py-3">
                 <ScoreBar
