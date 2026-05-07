@@ -48,20 +48,58 @@ export function detectCorrelations(trades: PoliticalTrade[]): Correlation[] {
 }
 
 /**
- * Slide a 90-day window over chronologically sorted trades and return the
- * window with the most trades that contains 2+ unique politicians. Returns
- * null if no such window exists.
+ * Find the strongest cluster of co-trades in a per-ticker group.
+ *
+ * Rule 1 (priority): if any single calendar day contains trades by 2+ unique
+ *   politicians on this ticker, that's always a cluster — windowDays = 0,
+ *   regardless of what wider 90-day analysis would find.
+ * Rule 2 (fallback): otherwise, slide a 90-day window over the chronologically
+ *   sorted trades and pick the window containing the most trades from 2+
+ *   unique politicians.
+ *
+ * Returns null if no cluster qualifies.
  */
 function findBestCluster(
   group: PoliticalTrade[],
 ): { trades: PoliticalTrade[]; windowDays: number } | null {
+  // --- Rule 1: same-day overlap always wins.
+  const byDate = new Map<string, PoliticalTrade[]>();
+  for (const t of group) {
+    const day = (t.filedAt ?? "").slice(0, 10);
+    if (!day) continue;
+    let arr = byDate.get(day);
+    if (!arr) {
+      arr = [];
+      byDate.set(day, arr);
+    }
+    arr.push(t);
+  }
+
+  let bestSameDay: PoliticalTrade[] | null = null;
+  let bestSameDayUnique = 0;
+  for (const dayTrades of byDate.values()) {
+    const unique = new Set(dayTrades.map((t) => t.memberName)).size;
+    if (unique < 2) continue;
+    if (
+      !bestSameDay ||
+      unique > bestSameDayUnique ||
+      (unique === bestSameDayUnique && dayTrades.length > bestSameDay.length)
+    ) {
+      bestSameDay = dayTrades;
+      bestSameDayUnique = unique;
+    }
+  }
+  if (bestSameDay) {
+    return { trades: bestSameDay, windowDays: 0 };
+  }
+
+  // --- Rule 2: 90-day rolling window over chronologically sorted trades.
   const sorted = [...group]
     .map((t) => ({ trade: t, ts: Date.parse(t.filedAt) }))
     .filter((x) => Number.isFinite(x.ts))
     .sort((a, b) => a.ts - b.ts);
 
   let best: { trades: PoliticalTrade[]; windowDays: number } | null = null;
-
   for (let i = 0; i < sorted.length; i++) {
     const cluster: typeof sorted = [sorted[i]];
     for (let j = i + 1; j < sorted.length; j++) {
