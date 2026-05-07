@@ -17,6 +17,11 @@ const navItems: NavItem[] = [
     description: "Latest signals across all sources",
   },
   {
+    href: "/signals",
+    label: "Signals",
+    description: "Tickers ranked by signal strength",
+  },
+  {
     href: "/political-trades",
     label: "Political Trades",
     description: "Congressional stock disclosures",
