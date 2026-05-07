@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { Party, PoliticalTrade } from "@/lib/politicalSignals";
+import ExportButton from "@/components/ExportButton";
 import TradeModal from "@/components/TradeModal";
 import WatchlistButton from "@/components/WatchlistButton";
 import type { PaperTradeDirection } from "@/lib/paperTrades";
@@ -219,10 +220,25 @@ export default function PoliticalTradesPage() {
             <div className="text-xs text-neutral-500 dark:text-neutral-400">
               Showing {filtered?.length ?? 0} of {trades.length} trades
             </div>
-            <RefreshButton
-              refreshing={refreshing}
-              onClick={() => load(true)}
-            />
+            <div className="flex items-center gap-2">
+              <ExportButton
+                data={(sorted ?? []).map((t) => ({
+                  filed_at: t.filedAt,
+                  member_name: t.memberName,
+                  party: t.party,
+                  chamber: t.chamber,
+                  ticker: t.ticker,
+                  side: t.transactionType,
+                  amount: t.amount,
+                  value_midpoint_usd: t.value,
+                }))}
+                filename={`political-trades-${new Date().toISOString().slice(0, 10)}.csv`}
+              />
+              <RefreshButton
+                refreshing={refreshing}
+                onClick={() => load(true)}
+              />
+            </div>
           </div>
         )}
       </div>

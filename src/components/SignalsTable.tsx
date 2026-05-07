@@ -1,5 +1,6 @@
 "use client";
 
+import ExportButton from "@/components/ExportButton";
 import WatchlistButton from "@/components/WatchlistButton";
 import { useWatchlist } from "@/lib/watchlist";
 import type { SignalScore } from "@/lib/signalScoring";
@@ -22,8 +23,23 @@ export default function SignalsTable({
 }) {
   const { isWatched, toggle } = useWatchlist();
 
+  const exportData = ranked.map((r) => ({
+    ticker: r.ticker,
+    score: r.score.score,
+    direction: r.score.direction,
+    unique_traders: r.score.uniqueTraders,
+    trade_count: r.tradesCount,
+  }));
+
   return (
-    <div className="overflow-hidden rounded-lg border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
+    <div className="space-y-3">
+      <div className="flex justify-end">
+        <ExportButton
+          data={exportData}
+          filename={`signals-${new Date().toISOString().slice(0, 10)}.csv`}
+        />
+      </div>
+      <div className="overflow-hidden rounded-lg border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
       <table className="w-full text-left text-sm">
         <thead className="border-b border-neutral-200 bg-neutral-50 text-xs uppercase tracking-wide text-neutral-500 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-400">
           <tr>
@@ -101,6 +117,7 @@ export default function SignalsTable({
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }

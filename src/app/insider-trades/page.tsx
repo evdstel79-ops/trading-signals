@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { InsiderTrade } from "@/lib/insiderSignals";
+import ExportButton from "@/components/ExportButton";
 import TradeModal from "@/components/TradeModal";
 import WatchlistButton from "@/components/WatchlistButton";
 import type { PaperTradeDirection } from "@/lib/paperTrades";
@@ -177,10 +178,25 @@ export default function InsiderTradesPage() {
             <div className="text-xs text-neutral-500 dark:text-neutral-400">
               Showing {filtered?.length ?? 0} of {trades.length} trades
             </div>
-            <RefreshButton
-              refreshing={refreshing}
-              onClick={() => load(true)}
-            />
+            <div className="flex items-center gap-2">
+              <ExportButton
+                data={(sorted ?? []).map((t) => ({
+                  filed_at: t.filedAt,
+                  insider_name: t.insiderName,
+                  company: t.companyName,
+                  ticker: t.ticker,
+                  side: t.transactionType,
+                  shares: t.shares,
+                  value_usd: t.value,
+                  filing_url: t.filingUrl,
+                }))}
+                filename={`insider-trades-${new Date().toISOString().slice(0, 10)}.csv`}
+              />
+              <RefreshButton
+                refreshing={refreshing}
+                onClick={() => load(true)}
+              />
+            </div>
           </div>
         )}
       </div>
