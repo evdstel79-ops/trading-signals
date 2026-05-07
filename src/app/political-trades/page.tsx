@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { Party, PoliticalTrade } from "@/lib/politicalSignals";
 import ExportButton from "@/components/ExportButton";
@@ -7,6 +8,7 @@ import TradeModal from "@/components/TradeModal";
 import WatchlistButton from "@/components/WatchlistButton";
 import type { PaperTradeDirection } from "@/lib/paperTrades";
 import { useSectors } from "@/lib/sectorData";
+import { correlationCountByTicker } from "@/lib/tradeCorrelation";
 import { useWatchlist } from "@/lib/watchlist";
 
 type ApiResponse = { trades: PoliticalTrade[] } | { error: string };
@@ -87,6 +89,11 @@ export default function PoliticalTradesPage() {
     [trades],
   );
   const { sectors } = useSectors(tickerList);
+
+  const correlationMap = useMemo(
+    () => (trades ? correlationCountByTicker(trades) : new Map<string, number>()),
+    [trades],
+  );
 
   const availableSectors = useMemo(() => {
     const set = new Set<string>();
@@ -328,6 +335,11 @@ export default function PoliticalTradesPage() {
                   </td>
                   <td className="px-4 py-3 font-mono text-xs">
                     {t.ticker || "—"}
+                    {t.ticker && correlationMap.has(t.ticker.toUpperCase()) && (
+                      <CorrelationBadge
+                        count={correlationMap.get(t.ticker.toUpperCase()) ?? 0}
+                      />
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     <SideBadge side={t.transactionType} />
@@ -366,6 +378,18 @@ export default function PoliticalTradesPage() {
         />
       )}
     </div>
+  );
+}
+
+function CorrelationBadge({ count }: { count: number }) {
+  return (
+    <Link
+      href="/correlations"
+      className="ml-1.5 inline-flex items-center gap-0.5 rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 hover:bg-amber-100 dark:bg-amber-950/40 dark:text-amber-300 dark:hover:bg-amber-950/60"
+      title={`${count} politicians traded this ticker within 90 days`}
+    >
+      🔥 {count} politicians
+    </Link>
   );
 }
 

@@ -22,6 +22,11 @@ const navItems: NavItem[] = [
     description: "Tickers ranked by signal strength",
   },
   {
+    href: "/correlations",
+    label: "Correlations",
+    description: "Tickers traded by multiple members",
+  },
+  {
     href: "/alerts",
     label: "Alerts",
     description: "Price-cross browser notifications",
