@@ -6,6 +6,7 @@ type RawCapitolTrade = {
   txDate?: string;
   txType?: string;
   value?: number | null;
+  price?: number | null;
   issuer?: {
     issuerName?: string;
     issuerTicker?: string;
@@ -29,6 +30,10 @@ export type PoliticalTrade = {
   amount: string;
   /** Numeric value for sorting. Bracket midpoint when a range is disclosed; exact amount otherwise. */
   value: number;
+  /** Per-share price at trade time, as estimated by capitoltrades (typically the day's close). Null if unavailable. */
+  tradePrice: number | null;
+  /** Trade execution date (YYYY-MM-DD) — typically earlier than filedAt. */
+  txDate: string;
   party: Party;
 };
 
@@ -151,6 +156,10 @@ function toTrade(raw: RawCapitolTrade): PoliticalTrade {
   const value =
     typeof raw.value === "number" && Number.isFinite(raw.value) ? raw.value : 0;
   const amount = formatDisclosureAmount(raw.value);
+  const tradePrice =
+    typeof raw.price === "number" && Number.isFinite(raw.price) && raw.price > 0
+      ? raw.price
+      : null;
 
   return {
     filedAt,
@@ -160,6 +169,8 @@ function toTrade(raw: RawCapitolTrade): PoliticalTrade {
     transactionType: classifyTransaction(raw.txType),
     amount,
     value,
+    tradePrice,
+    txDate: raw.txDate ?? "",
     party: classifyParty(raw.politician?.party),
   };
 }

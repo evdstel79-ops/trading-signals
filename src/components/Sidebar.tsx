@@ -27,6 +27,11 @@ const navItems: NavItem[] = [
     description: "Price-cross browser notifications",
   },
   {
+    href: "/politicians",
+    label: "Politicians",
+    description: "Members ranked by trading return",
+  },
+  {
     href: "/political-trades",
     label: "Political Trades",
     description: "Congressional stock disclosures",
