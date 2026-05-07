@@ -22,6 +22,11 @@ const navItems: NavItem[] = [
     description: "Tickers ranked by signal strength",
   },
   {
+    href: "/alerts",
+    label: "Alerts",
+    description: "Price-cross browser notifications",
+  },
+  {
     href: "/political-trades",
     label: "Political Trades",
     description: "Congressional stock disclosures",
