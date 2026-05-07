@@ -1,6 +1,8 @@
-const CAPITOL_TRADES_URL = "https://www.capitoltrades.com/trades?pageSize=30";
+const CAPITOL_TRADES_BASE_URL = "https://www.capitoltrades.com/trades?pageSize=30";
+const PAGES_TO_FETCH = 5;
 
 type RawCapitolTrade = {
+  _txId?: number | string;
   chamber?: "house" | "senate" | string;
   pubDate?: string;
   txDate?: string;
@@ -175,8 +177,12 @@ function toTrade(raw: RawCapitolTrade): PoliticalTrade {
   };
 }
 
-export async function fetchPoliticalTrades(): Promise<PoliticalTrade[]> {
-  const res = await fetch(CAPITOL_TRADES_URL, {
+async function fetchPage(page: number): Promise<RawCapitolTrade[]> {
+  const url =
+    page === 1
+      ? CAPITOL_TRADES_BASE_URL
+      : `${CAPITOL_TRADES_BASE_URL}&page=${page}`;
+  const res = await fetch(url, {
     headers: {
       "User-Agent":
         "Mozilla/5.0 (compatible; TradingSignals/0.1; +https://example.com)",
@@ -185,10 +191,40 @@ export async function fetchPoliticalTrades(): Promise<PoliticalTrade[]> {
     next: { revalidate: 1800 },
   });
   if (!res.ok) {
-    throw new Error(`capitoltrades fetch failed: ${res.status}`);
+    throw new Error(`capitoltrades page ${page} fetch failed: ${res.status}`);
   }
   const html = await res.text();
-  const decoded = decodeRscChunks(html);
-  const raw = extractTradesArray(decoded);
-  return raw.slice(0, 30).map(toTrade);
+  return extractTradesArray(decodeRscChunks(html));
+}
+
+export async function fetchPoliticalTrades(): Promise<PoliticalTrade[]> {
+  const pageNumbers = Array.from({ length: PAGES_TO_FETCH }, (_, i) => i + 1);
+  const results = await Promise.allSettled(pageNumbers.map(fetchPage));
+
+  // Surface a hard error only when the very first page fails — losing a later
+  // page is degraded but not catastrophic.
+  if (results[0].status === "rejected") {
+    throw results[0].reason instanceof Error
+      ? results[0].reason
+      : new Error("capitoltrades page 1 fetch failed");
+  }
+
+  const seenTxIds = new Set<string>();
+  const combined: RawCapitolTrade[] = [];
+  for (const r of results) {
+    if (r.status !== "fulfilled") continue;
+    for (const trade of r.value) {
+      const id = trade._txId != null ? String(trade._txId) : null;
+      if (id) {
+        if (seenTxIds.has(id)) continue;
+        seenTxIds.add(id);
+      }
+      combined.push(trade);
+    }
+  }
+
+  // Newest-first by publication date. Stable enough for our use cases:
+  // dashboard "last 7d", politicians, correlations, etc.
+  combined.sort((a, b) => (b.pubDate ?? "").localeCompare(a.pubDate ?? ""));
+  return combined.map(toTrade);
 }
