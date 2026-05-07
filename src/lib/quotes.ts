@@ -3,6 +3,8 @@ export type Quote = {
   price: number;
   currency: string;
   symbol: string;
+  /** Company display name (longname or shortname from Yahoo). Null if unavailable. */
+  longname: string | null;
   previousClose: number | null;
   sector: string | null;
   industry: string | null;
@@ -20,6 +22,8 @@ type YahooSearchHit = {
   symbol?: string;
   sector?: string;
   industry?: string;
+  longname?: string;
+  shortname?: string;
 };
 
 type YahooSearchResponse = {
@@ -28,7 +32,11 @@ type YahooSearchResponse = {
 
 async function fetchYahooProfile(
   ticker: string,
-): Promise<{ sector: string | null; industry: string | null } | null> {
+): Promise<{
+  sector: string | null;
+  industry: string | null;
+  longname: string | null;
+} | null> {
   // Yahoo's quoteSummary endpoint requires crumb auth; the search endpoint
   // exposes sector/industry without it.
   const url = `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(
@@ -46,6 +54,7 @@ async function fetchYahooProfile(
     return {
       sector: hit.sector ?? null,
       industry: hit.industry ?? null,
+      longname: hit.longname ?? hit.shortname ?? null,
     };
   } catch {
     return null;
@@ -96,6 +105,7 @@ async function fetchYahooQuote(ticker: string): Promise<Quote | null> {
             : null,
       sector: profile?.sector ?? null,
       industry: profile?.industry ?? null,
+      longname: profile?.longname ?? null,
     };
   } catch {
     return null;

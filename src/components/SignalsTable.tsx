@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import ExportButton from "@/components/ExportButton";
+import TickerLink from "@/components/TickerLink";
 import WatchlistButton from "@/components/WatchlistButton";
 import { useSectors } from "@/lib/sectorData";
 import { useWatchlist } from "@/lib/watchlist";
@@ -80,7 +81,7 @@ export default function SignalsTable({
                 {i + 1}
               </td>
               <td className="px-4 py-3 font-mono text-sm font-semibold">
-                {r.ticker}
+                <TickerLink ticker={r.ticker} />
               </td>
               <td className="px-4 py-3 text-xs text-neutral-600 dark:text-neutral-400">
                 {sectors.get(r.ticker) ?? (

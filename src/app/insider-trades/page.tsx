@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { InsiderTrade } from "@/lib/insiderSignals";
 import ExportButton from "@/components/ExportButton";
+import TickerLink from "@/components/TickerLink";
 import TradeModal from "@/components/TradeModal";
 import WatchlistButton from "@/components/WatchlistButton";
 import type { PaperTradeDirection } from "@/lib/paperTrades";
@@ -281,7 +282,7 @@ export default function InsiderTradesPage() {
                     {t.companyName}
                   </td>
                   <td className="px-4 py-3 font-mono text-xs">
-                    {t.ticker || "—"}
+                    <TickerLink ticker={t.ticker} />
                   </td>
                   <td className="px-4 py-3">
                     <SideBadge side={t.transactionType} />

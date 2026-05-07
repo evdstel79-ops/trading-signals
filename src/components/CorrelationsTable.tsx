@@ -1,5 +1,6 @@
 "use client";
 
+import TickerLink from "@/components/TickerLink";
 import WatchlistButton from "@/components/WatchlistButton";
 import { useWatchlist } from "@/lib/watchlist";
 import type { Correlation } from "@/lib/tradeCorrelation";
@@ -56,7 +57,7 @@ export default function CorrelationsTable({
                 {i + 1}
               </td>
               <td className="px-4 py-3 font-mono text-sm font-semibold">
-                {r.ticker}
+                <TickerLink ticker={r.ticker} />
               </td>
               <td className="px-4 py-3">
                 <ScoreBar score={r.correlationScore} maxScore={maxScore} />

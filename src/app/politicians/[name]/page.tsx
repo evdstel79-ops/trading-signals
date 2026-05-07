@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import TickerLink from "@/components/TickerLink";
 import {
   fetchPoliticalTrades,
   type Party,
@@ -163,7 +164,7 @@ export default async function PoliticianDetailPage({
                     {t.filedAt}
                   </td>
                   <td className="px-4 py-3 font-mono text-xs">
-                    {t.ticker || "—"}
+                    <TickerLink ticker={t.ticker} />
                   </td>
                   <td className="px-4 py-3">
                     <SideBadge side={t.transactionType} />

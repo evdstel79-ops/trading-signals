@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useWatchlist, type WatchlistItem } from "@/lib/watchlist";
 
@@ -120,9 +121,12 @@ function WatchCard({
   return (
     <div className="flex flex-col rounded-lg border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900">
       <div className="flex items-start justify-between gap-3">
-        <div className="font-mono text-lg font-semibold tracking-tight">
+        <Link
+          href={`/ticker/${encodeURIComponent(item.ticker)}`}
+          className="font-mono text-lg font-semibold tracking-tight hover:text-emerald-700 hover:underline dark:hover:text-emerald-300"
+        >
           {item.ticker}
-        </div>
+        </Link>
         <button
           type="button"
           onClick={onRemove}

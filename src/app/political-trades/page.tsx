@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { Party, PoliticalTrade } from "@/lib/politicalSignals";
 import ExportButton from "@/components/ExportButton";
+import TickerLink from "@/components/TickerLink";
 import TradeModal from "@/components/TradeModal";
 import WatchlistButton from "@/components/WatchlistButton";
 import type { PaperTradeDirection } from "@/lib/paperTrades";
@@ -334,7 +335,7 @@ export default function PoliticalTradesPage() {
                     {t.chamber}
                   </td>
                   <td className="px-4 py-3 font-mono text-xs">
-                    {t.ticker || "—"}
+                    <TickerLink ticker={t.ticker} />
                     {t.ticker && correlationMap.has(t.ticker.toUpperCase()) && (
                       <CorrelationBadge
                         count={correlationMap.get(t.ticker.toUpperCase()) ?? 0}

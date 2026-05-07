@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import TickerLink from "@/components/TickerLink";
 import {
   computePnL,
   deletePaperTrade,
@@ -215,7 +216,9 @@ export default function PaperTradingPage() {
                       day: "numeric",
                     })}
                   </td>
-                  <td className="px-4 py-3 font-mono text-xs">{t.ticker}</td>
+                  <td className="px-4 py-3 font-mono text-xs">
+                    <TickerLink ticker={t.ticker} />
+                  </td>
                   <td className="px-4 py-3">
                     <DirectionBadge direction={t.direction} />
                   </td>
