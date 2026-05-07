@@ -17,7 +17,7 @@ export default function ThemeToggle() {
       onClick={() => setTheme(isDark ? "light" : "dark")}
       aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
       title={isDark ? "Switch to light mode" : "Switch to dark mode"}
-      className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-600 transition-colors hover:border-emerald-500 hover:text-emerald-700 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-400 dark:hover:border-emerald-600 dark:hover:text-emerald-300"
+      className="inline-flex h-11 w-11 items-center justify-center rounded-md border border-neutral-200 bg-white text-neutral-600 transition-colors hover:border-emerald-500 hover:text-emerald-700 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-400 dark:hover:border-emerald-600 dark:hover:text-emerald-300 lg:h-8 lg:w-8"
     >
       {/* Reserve space and avoid SSR/CSR mismatch by rendering nothing until mounted. */}
       {mounted ? (isDark ? <SunIcon /> : <MoonIcon />) : (

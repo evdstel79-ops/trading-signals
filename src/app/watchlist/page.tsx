@@ -128,7 +128,7 @@ function WatchCard({
           onClick={onRemove}
           aria-label={`Remove ${item.ticker} from watchlist`}
           title="Remove from watchlist"
-          className="rounded-md p-1 text-neutral-400 hover:bg-red-50 hover:text-red-600 dark:text-neutral-500 dark:hover:bg-red-950/40 dark:hover:text-red-400"
+          className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md p-1 text-neutral-400 hover:bg-red-50 hover:text-red-600 dark:text-neutral-500 dark:hover:bg-red-950/40 dark:hover:text-red-400 lg:min-h-0 lg:min-w-0"
         >
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
             <path

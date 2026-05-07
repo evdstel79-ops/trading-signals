@@ -142,7 +142,7 @@ export default function AlertsPage() {
         )}
       </form>
 
-      <div className="overflow-hidden rounded-lg border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
+      <div className="overflow-x-auto rounded-lg border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-neutral-200 bg-neutral-50 text-xs uppercase tracking-wide text-neutral-500 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-400">
             <tr>
@@ -205,7 +205,7 @@ export default function AlertsPage() {
                     <button
                       type="button"
                       onClick={() => remove(a.id)}
-                      className="rounded-md px-2 py-1 text-xs text-neutral-500 hover:bg-red-50 hover:text-red-700 dark:text-neutral-400 dark:hover:bg-red-950/40 dark:hover:text-red-300"
+                      className="inline-flex min-h-[44px] items-center justify-center rounded-md px-2 py-1 text-xs text-neutral-500 hover:bg-red-50 hover:text-red-700 dark:text-neutral-400 dark:hover:bg-red-950/40 dark:hover:text-red-300 lg:min-h-0"
                     >
                       Delete
                     </button>

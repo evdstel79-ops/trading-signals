@@ -17,7 +17,7 @@ export default function WatchlistButton({ ticker, watched, onToggle }: Props) {
       }
       title={watched ? "Remove from watchlist" : "Add to watchlist"}
       aria-pressed={watched}
-      className={`rounded-md p-1 transition-colors ${
+      className={`inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md p-1 transition-colors lg:min-h-0 lg:min-w-0 ${
         watched
           ? "text-amber-500 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950/40"
           : "text-neutral-300 hover:bg-neutral-100 hover:text-amber-500 dark:text-neutral-600 dark:hover:bg-neutral-800 dark:hover:text-amber-400"

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import AlertsManager from "@/components/AlertsManager";
-import Sidebar from "@/components/Sidebar";
+import LayoutShell from "@/components/LayoutShell";
 import ThemeProvider from "@/components/ThemeProvider";
 
 const geistSans = Geist({
@@ -35,14 +35,7 @@ export default function RootLayout({
       <body className="min-h-full bg-neutral-50 text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100">
         <ThemeProvider>
           <AlertsManager />
-          <div className="flex min-h-screen">
-            <Sidebar />
-            <main className="flex-1 overflow-x-hidden">
-              <div className="mx-auto max-w-7xl px-6 py-8 lg:px-10">
-                {children}
-              </div>
-            </main>
-          </div>
+          <LayoutShell>{children}</LayoutShell>
         </ThemeProvider>
       </body>
     </html>
