@@ -332,7 +332,7 @@ function PositionsTable({
               <tr>
                 <td
                   colSpan={9}
-                  className="px-4 py-12 text-center text-sm text-neutral-500"
+                  className="px-4 py-12 text-center text-sm text-neutral-500 dark:text-neutral-400"
                 >
                   Loading…
                 </td>
@@ -407,12 +407,12 @@ function PositionsTable({
                   <td
                     className={`px-4 py-3 text-right font-mono text-xs font-medium ${
                       pnl === null
-                        ? "text-neutral-400"
+                        ? "text-neutral-400 dark:text-neutral-600"
                         : pnl > 0
                           ? "text-emerald-600 dark:text-emerald-400"
                           : pnl < 0
                             ? "text-red-600 dark:text-red-400"
-                            : "text-neutral-500"
+                            : "text-neutral-500 dark:text-neutral-400"
                     }`}
                   >
                     {pnl === null ? "—" : currencyFmt.format(pnl)}

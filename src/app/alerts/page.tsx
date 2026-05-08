@@ -221,7 +221,7 @@ export default function AlertsPage() {
               <tr>
                 <td
                   colSpan={6}
-                  className="px-4 py-12 text-center text-sm text-neutral-500"
+                  className="px-4 py-12 text-center text-sm text-neutral-500 dark:text-neutral-400"
                 >
                   Loading…
                 </td>

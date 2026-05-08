@@ -112,7 +112,7 @@ export default function SectorRotationChart({
                   type="number"
                   allowDecimals={false}
                   tick={{ fontSize: 11, fill: "currentColor" }}
-                  className="text-neutral-500"
+                  className="text-neutral-500 dark:text-neutral-400"
                   stroke="currentColor"
                 />
                 <YAxis
@@ -120,7 +120,7 @@ export default function SectorRotationChart({
                   dataKey="sector"
                   width={130}
                   tick={{ fontSize: 11, fill: "currentColor" }}
-                  className="text-neutral-500"
+                  className="text-neutral-500 dark:text-neutral-400"
                   stroke="currentColor"
                 />
                 <Tooltip content={<BarTooltip />} />
@@ -167,13 +167,13 @@ export default function SectorRotationChart({
                   domain={["dataMin", "dataMax"]}
                   tickFormatter={formatWeekTick}
                   tick={{ fontSize: 11, fill: "currentColor" }}
-                  className="text-neutral-500"
+                  className="text-neutral-500 dark:text-neutral-400"
                   stroke="currentColor"
                 />
                 <YAxis
                   allowDecimals={false}
                   tick={{ fontSize: 11, fill: "currentColor" }}
-                  className="text-neutral-500"
+                  className="text-neutral-500 dark:text-neutral-400"
                   stroke="currentColor"
                   width={40}
                 />

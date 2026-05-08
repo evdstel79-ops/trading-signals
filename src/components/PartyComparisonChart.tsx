@@ -85,7 +85,7 @@ export default function PartyComparisonChart({
                   type="number"
                   allowDecimals={false}
                   tick={{ fontSize: 11, fill: "currentColor" }}
-                  className="text-neutral-500"
+                  className="text-neutral-500 dark:text-neutral-400"
                   stroke="currentColor"
                 />
                 <YAxis
@@ -93,7 +93,7 @@ export default function PartyComparisonChart({
                   dataKey="party"
                   width={90}
                   tick={{ fontSize: 11, fill: "currentColor" }}
-                  className="text-neutral-500"
+                  className="text-neutral-500 dark:text-neutral-400"
                   stroke="currentColor"
                 />
                 <Tooltip content={<SectorTooltip />} />

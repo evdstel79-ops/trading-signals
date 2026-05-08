@@ -139,14 +139,14 @@ export default function ComparisonChart({
                 domain={["dataMin", "dataMax"]}
                 tickFormatter={formatDateTick}
                 tick={{ fontSize: 11, fill: "currentColor" }}
-                className="text-neutral-500"
+                className="text-neutral-500 dark:text-neutral-400"
                 stroke="currentColor"
               />
               <YAxis
                 domain={["auto", "auto"]}
                 tickFormatter={(v: number) => v.toFixed(0)}
                 tick={{ fontSize: 11, fill: "currentColor" }}
-                className="text-neutral-500"
+                className="text-neutral-500 dark:text-neutral-400"
                 stroke="currentColor"
                 width={50}
               />
@@ -242,7 +242,7 @@ function CompareTooltip({
           <span style={{ color: COLOR_A }}>●</span> {tickerA}{" "}
           {point.aIndex.toFixed(2)}
           {point.aClose !== undefined && (
-            <span className="text-neutral-500"> (${point.aClose.toFixed(2)})</span>
+            <span className="text-neutral-500 dark:text-neutral-400"> (${point.aClose.toFixed(2)})</span>
           )}
         </div>
       )}
@@ -251,7 +251,7 @@ function CompareTooltip({
           <span style={{ color: COLOR_B }}>●</span> {tickerB}{" "}
           {point.bIndex.toFixed(2)}
           {point.bClose !== undefined && (
-            <span className="text-neutral-500"> (${point.bClose.toFixed(2)})</span>
+            <span className="text-neutral-500 dark:text-neutral-400"> (${point.bClose.toFixed(2)})</span>
           )}
         </div>
       )}

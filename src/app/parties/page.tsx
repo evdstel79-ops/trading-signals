@@ -330,7 +330,7 @@ function PartyHero({
                 {stats.topSectors.map((s) => s.sector).join(", ")}
               </span>
             ) : (
-              <span className="text-neutral-400">—</span>
+              <span className="text-neutral-400 dark:text-neutral-600">—</span>
             )
           }
         />

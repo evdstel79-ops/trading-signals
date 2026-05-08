@@ -82,7 +82,7 @@ export default function MoversChart({
                 domain={[-domainMax, domainMax]}
                 tickFormatter={(v: number) => `${v >= 0 ? "+" : ""}${v}%`}
                 tick={{ fontSize: 11, fill: "currentColor" }}
-                className="text-neutral-500"
+                className="text-neutral-500 dark:text-neutral-400"
                 stroke="currentColor"
               />
               <YAxis
@@ -90,7 +90,7 @@ export default function MoversChart({
                 dataKey="label"
                 width={90}
                 tick={{ fontSize: 11, fill: "currentColor" }}
-                className="text-neutral-500"
+                className="text-neutral-500 dark:text-neutral-400"
                 stroke="currentColor"
                 interval={0}
               />

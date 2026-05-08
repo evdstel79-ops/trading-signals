@@ -248,7 +248,7 @@ function SectorCard({ total }: { total: ExtendedTotal }) {
                 <TickerLink ticker={total.topTicker} />
               </span>
             ) : (
-              <span className="text-neutral-400">—</span>
+              <span className="text-neutral-400 dark:text-neutral-600">—</span>
             )
           }
         />
@@ -263,7 +263,7 @@ function SectorCard({ total }: { total: ExtendedTotal }) {
                 {total.topPolitician}
               </Link>
             ) : (
-              <span className="text-neutral-400">—</span>
+              <span className="text-neutral-400 dark:text-neutral-600">—</span>
             )
           }
         />

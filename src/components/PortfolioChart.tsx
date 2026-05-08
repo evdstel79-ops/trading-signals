@@ -50,13 +50,13 @@ export default function PortfolioChart({ data }: { data: PortfolioPoint[] }) {
                 dataKey="date"
                 tickFormatter={formatDateTick}
                 tick={{ fontSize: 11, fill: "currentColor" }}
-                className="text-neutral-500"
+                className="text-neutral-500 dark:text-neutral-400"
                 stroke="currentColor"
               />
               <YAxis
                 tickFormatter={(v: number) => currencyFmt.format(v)}
                 tick={{ fontSize: 11, fill: "currentColor" }}
-                className="text-neutral-500"
+                className="text-neutral-500 dark:text-neutral-400"
                 stroke="currentColor"
                 width={64}
               />

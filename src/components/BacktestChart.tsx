@@ -55,14 +55,14 @@ export default function BacktestChart({ series }: { series: SeriesPoint[] }) {
               domain={["dataMin", "dataMax"]}
               tickFormatter={formatDateTick}
               tick={{ fontSize: 11, fill: "currentColor" }}
-              className="text-neutral-500"
+              className="text-neutral-500 dark:text-neutral-400"
               stroke="currentColor"
             />
             <YAxis
               domain={["auto", "auto"]}
               tickFormatter={(v: number) => v.toFixed(0)}
               tick={{ fontSize: 11, fill: "currentColor" }}
-              className="text-neutral-500"
+              className="text-neutral-500 dark:text-neutral-400"
               stroke="currentColor"
               width={50}
             />

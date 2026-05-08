@@ -151,7 +151,7 @@ export default async function TickerPage({
                   ? "text-emerald-600 dark:text-emerald-400"
                   : dayChange < 0
                     ? "text-red-600 dark:text-red-400"
-                    : "text-neutral-500"
+                    : "text-neutral-500 dark:text-neutral-400"
               }`}
             >
               {dayChange >= 0 ? "+" : ""}
