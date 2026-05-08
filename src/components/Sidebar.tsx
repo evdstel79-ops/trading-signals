@@ -44,6 +44,11 @@ const navItems: NavItem[] = [
     description: "Republicans vs. Democrats breakdown",
   },
   {
+    href: "/chambers",
+    label: "Chambers",
+    description: "House vs. Senate breakdown",
+  },
+  {
     href: "/insiders",
     label: "Insiders",
     description: "Corporate insiders ranked by buys",
