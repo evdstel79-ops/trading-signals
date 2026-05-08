@@ -22,6 +22,36 @@ type QuotesResponse = {
   >;
 };
 
+const PORTFOLIO_KEY = "trading-signals.portfolio-size.v1";
+const RISK_PCT_KEY = "trading-signals.risk-pct.v1";
+
+const currencyFmt = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  maximumFractionDigits: 0,
+});
+
+function loadNumber(key: string, fallback: number): number {
+  if (typeof window === "undefined") return fallback;
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (raw === null) return fallback;
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function saveNumber(key: string, value: number): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(key, String(value));
+  } catch {
+    // localStorage may be unavailable (private browsing, etc.) — non-fatal.
+  }
+}
+
 export default function TradeModal({
   ticker: initialTicker,
   direction: initialDirection,
@@ -40,6 +70,53 @@ export default function TradeModal({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const [portfolioSize, setPortfolioSize] = useState<number>(() =>
+    loadNumber(PORTFOLIO_KEY, 10000),
+  );
+  const [riskPct, setRiskPct] = useState<number>(() =>
+    loadNumber(RISK_PCT_KEY, 2),
+  );
+  const [livePrice, setLivePrice] = useState<number | null>(null);
+  const [livePriceError, setLivePriceError] = useState<string | null>(null);
+
+  useEffect(() => {
+    saveNumber(PORTFOLIO_KEY, portfolioSize);
+  }, [portfolioSize]);
+  useEffect(() => {
+    saveNumber(RISK_PCT_KEY, riskPct);
+  }, [riskPct]);
+
+  useEffect(() => {
+    const t = ticker.trim().toUpperCase();
+    if (!t) return;
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      fetch(`/api/quotes?tickers=${encodeURIComponent(t)}`)
+        .then(async (r) => {
+          const data = (await r.json()) as QuotesResponse;
+          if (cancelled) return;
+          const quote = data.quotes?.[t];
+          if (!quote) {
+            setLivePrice(null);
+            setLivePriceError(`No live quote for ${t}`);
+            return;
+          }
+          setLivePrice(quote.price);
+          setLivePriceError(null);
+        })
+        .catch((e: unknown) => {
+          if (cancelled) return;
+          setLivePriceError(
+            e instanceof Error ? e.message : "Quote fetch failed",
+          );
+        });
+    }, 300);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [ticker]);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -52,6 +129,36 @@ export default function TradeModal({
       document.body.style.overflow = prev;
     };
   }, [onClose]);
+
+  const stopLossNum = Number(stopLoss);
+  const targetNum = Number(takeProfit);
+  const hasStopLoss = stopLoss.trim() !== "" && Number.isFinite(stopLossNum) && stopLossNum > 0;
+  const hasTarget = takeProfit.trim() !== "" && Number.isFinite(targetNum) && targetNum > 0;
+
+  const maxRisk = portfolioSize * (riskPct / 100);
+
+  let riskPerShare: number | null = null;
+  if (hasStopLoss && livePrice !== null) {
+    const diff =
+      direction === "buy" ? livePrice - stopLossNum : stopLossNum - livePrice;
+    riskPerShare = diff > 0 ? diff : null;
+  }
+
+  const positionSize: number | null =
+    riskPerShare !== null && maxRisk > 0
+      ? Math.max(0, Math.floor(maxRisk / riskPerShare))
+      : null;
+
+  let rrRatio: number | null = null;
+  if (hasStopLoss && hasTarget && livePrice !== null) {
+    const profit =
+      direction === "buy" ? targetNum - livePrice : livePrice - targetNum;
+    const risk =
+      direction === "buy" ? livePrice - stopLossNum : stopLossNum - livePrice;
+    if (risk > 0 && profit > 0) {
+      rrRatio = profit / risk;
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -194,34 +301,6 @@ export default function TradeModal({
             />
           </Field>
 
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Stop loss $ (optional)">
-              <input
-                type="number"
-                min="0.01"
-                step="0.01"
-                value={stopLoss}
-                onChange={(e) => setStopLoss(e.target.value)}
-                placeholder="e.g. 45.00"
-                className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:border-neutral-700 dark:bg-neutral-950"
-              />
-            </Field>
-            <Field label="Take profit $ (optional)">
-              <input
-                type="number"
-                min="0.01"
-                step="0.01"
-                value={takeProfit}
-                onChange={(e) => setTakeProfit(e.target.value)}
-                placeholder="e.g. 55.00"
-                className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:border-neutral-700 dark:bg-neutral-950"
-              />
-            </Field>
-          </div>
-          <p className="text-xs text-neutral-500 dark:text-neutral-400">
-            Position closes automatically if price hits this level.
-          </p>
-
           <Field label="Note (optional)">
             <textarea
               value={note}
@@ -231,6 +310,84 @@ export default function TradeModal({
               className="w-full resize-none rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm placeholder:text-neutral-400 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:border-neutral-700 dark:bg-neutral-950 dark:placeholder:text-neutral-500"
             />
           </Field>
+
+          <div className="space-y-3 rounded-md border border-neutral-200 bg-neutral-50 p-3 dark:border-neutral-800 dark:bg-neutral-950/40">
+            <div className="flex items-baseline justify-between">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-neutral-700 dark:text-neutral-200">
+                Position sizing
+              </h3>
+              <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
+                {livePrice !== null
+                  ? `Entry ~ ${formatPrice(livePrice)}`
+                  : livePriceError
+                    ? "no live price"
+                    : "fetching price…"}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Portfolio size ($)">
+                <input
+                  type="number"
+                  min="0"
+                  step="100"
+                  value={portfolioSize}
+                  onChange={(e) => setPortfolioSize(Number(e.target.value) || 0)}
+                  className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:border-neutral-700 dark:bg-neutral-950"
+                />
+              </Field>
+              <Field label={`Risk per trade · ${riskPct.toFixed(1)}%`}>
+                <input
+                  type="range"
+                  min="0.5"
+                  max="5"
+                  step="0.5"
+                  value={riskPct}
+                  onChange={(e) => setRiskPct(Number(e.target.value))}
+                  className="h-9 w-full accent-emerald-600"
+                  aria-label="Risk per trade percent"
+                />
+              </Field>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Stop loss ($)">
+                <input
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value={stopLoss}
+                  onChange={(e) => setStopLoss(e.target.value)}
+                  placeholder="e.g. 45.00"
+                  className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:border-neutral-700 dark:bg-neutral-950"
+                />
+              </Field>
+              <Field label="Target ($) (optional)">
+                <input
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  value={takeProfit}
+                  onChange={(e) => setTakeProfit(e.target.value)}
+                  placeholder="e.g. 55.00"
+                  className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:border-neutral-700 dark:bg-neutral-950"
+                />
+              </Field>
+            </div>
+
+            <SizingCalc
+              maxRisk={maxRisk}
+              positionSize={positionSize}
+              hasStopLoss={hasStopLoss}
+              hasLivePrice={livePrice !== null}
+              rrRatio={rrRatio}
+              hasTarget={hasTarget}
+              onApplySize={(n) => setQuantity(String(n))}
+            />
+            <p className="text-[11px] text-neutral-500 dark:text-neutral-400">
+              Position auto-closes if price hits stop loss or target.
+            </p>
+          </div>
 
           {error && (
             <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
@@ -257,6 +414,117 @@ export default function TradeModal({
           </div>
         </form>
       </div>
+    </div>
+  );
+}
+
+function formatPrice(p: number): string {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 2,
+  }).format(p);
+}
+
+function SizingCalc({
+  maxRisk,
+  positionSize,
+  hasStopLoss,
+  hasLivePrice,
+  rrRatio,
+  hasTarget,
+  onApplySize,
+}: {
+  maxRisk: number;
+  positionSize: number | null;
+  hasStopLoss: boolean;
+  hasLivePrice: boolean;
+  rrRatio: number | null;
+  hasTarget: boolean;
+  onApplySize: (n: number) => void;
+}) {
+  const rrColor =
+    rrRatio === null
+      ? "neutral"
+      : rrRatio >= 2.0
+        ? "emerald"
+        : rrRatio >= 1.0
+          ? "amber"
+          : "red";
+  const rrStyles: Record<"emerald" | "amber" | "red" | "neutral", string> = {
+    emerald:
+      "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-200",
+    amber:
+      "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-200",
+    red: "bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-200",
+    neutral:
+      "bg-neutral-200 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300",
+  };
+
+  return (
+    <div className="space-y-1.5 rounded-md bg-white p-2.5 text-xs dark:bg-neutral-900">
+      <Row label="Max risk">
+        <span className="font-mono font-semibold tabular-nums">
+          {currencyFmt.format(maxRisk)}{" "}
+          <span className="font-normal text-neutral-500 dark:text-neutral-400">
+            at risk
+          </span>
+        </span>
+      </Row>
+      <Row label="Position size">
+        {positionSize !== null ? (
+          <span className="flex items-center gap-2">
+            <span className="font-mono font-semibold tabular-nums">
+              {positionSize.toLocaleString("en-US")} shares
+            </span>
+            <button
+              type="button"
+              onClick={() => onApplySize(positionSize)}
+              className="rounded border border-neutral-300 px-1.5 py-0.5 text-[10px] font-medium text-neutral-700 hover:border-emerald-500 hover:text-emerald-700 dark:border-neutral-700 dark:text-neutral-300 dark:hover:border-emerald-600 dark:hover:text-emerald-300"
+            >
+              Use
+            </button>
+          </span>
+        ) : (
+          <span className="text-neutral-500 dark:text-neutral-400">
+            {!hasLivePrice
+              ? "Waiting for entry price"
+              : !hasStopLoss
+                ? "Enter stop loss"
+                : "Stop loss must be on the risk side of entry"}
+          </span>
+        )}
+      </Row>
+      <Row label="R:R">
+        {rrRatio !== null ? (
+          <span
+            className={`inline-flex rounded-md px-2 py-0.5 font-mono font-semibold tabular-nums ${rrStyles[rrColor]}`}
+          >
+            {rrRatio.toFixed(2)}
+          </span>
+        ) : (
+          <span className="text-neutral-500 dark:text-neutral-400">
+            {hasTarget && hasStopLoss && hasLivePrice
+              ? "Target on wrong side"
+              : "Set a target to calculate R:R"}
+          </span>
+        )}
+      </Row>
+    </div>
+  );
+}
+
+function Row({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <span className="text-neutral-500 dark:text-neutral-400">{label}</span>
+      <span>{children}</span>
     </div>
   );
 }

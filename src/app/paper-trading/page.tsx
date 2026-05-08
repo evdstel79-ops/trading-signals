@@ -378,7 +378,7 @@ function PositionsTable({
                           )}
                           {t.takeProfit != null && (
                             <span className="inline-flex rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
-                              TP {currencyFmt.format(t.takeProfit)}
+                              Target {currencyFmt.format(t.takeProfit)}
                             </span>
                           )}
                         </div>
