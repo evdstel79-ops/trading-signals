@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { Party, PoliticalTrade } from "@/lib/politicalSignals";
 import ExportButton from "@/components/ExportButton";
 import TickerLink from "@/components/TickerLink";
+import TradeHeatmap from "@/components/TradeHeatmap";
 import TradeModal from "@/components/TradeModal";
 import WatchlistButton from "@/components/WatchlistButton";
 import type { PaperTradeDirection } from "@/lib/paperTrades";
@@ -165,6 +166,21 @@ export default function PoliticalTradesPage() {
           the STOCK Act. Source: capitoltrades.com.
         </p>
       </header>
+
+      <div className="rounded-lg border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
+        <h2 className="text-sm font-semibold">Trading activity</h2>
+        <p className="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
+          Political trade filings over the last 26 weeks.
+        </p>
+        <div className="mt-3">
+          <TradeHeatmap
+            trades={(trades ?? []).map((t) => ({
+              date: t.filedAt,
+              ticker: t.ticker,
+            }))}
+          />
+        </div>
+      </div>
 
       <div className="rounded-lg border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
         <div className="flex flex-wrap items-center gap-3">

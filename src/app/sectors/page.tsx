@@ -5,6 +5,7 @@ import SectorRotationChart, {
   type SectorWeekly,
 } from "@/components/SectorRotationChart";
 import TickerLink from "@/components/TickerLink";
+import TradeHeatmap from "@/components/TradeHeatmap";
 import {
   fetchPoliticalTrades,
   type PoliticalTrade,
@@ -157,6 +158,22 @@ export default async function SectorsPage() {
         </div>
       ) : (
         <>
+          <div className="rounded-lg border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
+            <h2 className="text-sm font-semibold">Trading activity</h2>
+            <p className="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
+              Political trade filings over the last 26 weeks.
+            </p>
+            <div className="mt-3">
+              <TradeHeatmap
+                compact
+                trades={political.map((t) => ({
+                  date: t.filedAt,
+                  ticker: t.ticker,
+                }))}
+              />
+            </div>
+          </div>
+
           <SectorRotationChart totals={totals} weekly={weeklySeries} />
 
           <section>
