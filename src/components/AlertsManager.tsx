@@ -2,6 +2,11 @@
 
 import { useEffect } from "react";
 import { addNotification } from "@/lib/notifications";
+import {
+  closePaperTrade,
+  loadPaperTrades,
+  type PaperTrade,
+} from "@/lib/paperTrades";
 import { loadAlerts, saveAlerts, type PriceAlert } from "@/lib/priceAlerts";
 
 const POLL_MS = 60_000;
@@ -18,38 +23,71 @@ export default function AlertsManager() {
     async function tick() {
       if (cancelled) return;
       try {
-        const active = loadAlerts().filter((a) => !a.triggeredAt);
-        if (active.length > 0) {
-          const tickers = Array.from(new Set(active.map((a) => a.ticker)));
-          const res = await fetch(
-            `/api/quotes?tickers=${encodeURIComponent(tickers.join(","))}`,
-            { cache: "no-store" },
-          );
-          if (res.ok) {
-            const data = (await res.json()) as QuotesResponse;
-            const quotes = data.quotes ?? {};
-            const all = loadAlerts();
-            let changed = false;
-            const now = new Date().toISOString();
-            for (const alert of all) {
-              if (alert.triggeredAt) continue;
-              const quote = quotes[alert.ticker];
-              if (!quote) continue;
-              if (didTrigger(alert, quote.price)) {
-                alert.triggeredAt = now;
-                changed = true;
-                fireNotification(alert, quote.price);
-                fireEmail(alert);
-                addNotification({
-                  ticker: alert.ticker,
-                  condition: alert.condition,
-                  targetPrice: alert.targetPrice,
-                  triggeredPrice: quote.price,
-                });
-              }
+        const activeAlerts = loadAlerts().filter((a) => !a.triggeredAt);
+        const slTpTrades = loadPaperTrades().filter(
+          (t) => !t.closedAt && (t.stopLoss != null || t.takeProfit != null),
+        );
+
+        const tickers = Array.from(
+          new Set([
+            ...activeAlerts.map((a) => a.ticker),
+            ...slTpTrades.map((t) => t.ticker),
+          ]),
+        );
+        if (tickers.length === 0) return;
+
+        const res = await fetch(
+          `/api/quotes?tickers=${encodeURIComponent(tickers.join(","))}`,
+          { cache: "no-store" },
+        );
+        if (!res.ok) return;
+        const data = (await res.json()) as QuotesResponse;
+        const quotes = data.quotes ?? {};
+
+        // Price alerts.
+        if (activeAlerts.length > 0) {
+          const all = loadAlerts();
+          let changed = false;
+          const now = new Date().toISOString();
+          for (const alert of all) {
+            if (alert.triggeredAt) continue;
+            const quote = quotes[alert.ticker];
+            if (!quote) continue;
+            if (didTriggerAlert(alert, quote.price)) {
+              alert.triggeredAt = now;
+              changed = true;
+              fireAlertBrowserNotification(alert, quote.price);
+              fireEmail(alert);
+              addNotification({
+                ticker: alert.ticker,
+                condition: alert.condition,
+                targetPrice: alert.targetPrice,
+                triggeredPrice: quote.price,
+              });
             }
-            if (changed) saveAlerts(all);
           }
+          if (changed) saveAlerts(all);
+        }
+
+        // Paper-trade stop-loss / take-profit.
+        for (const trade of slTpTrades) {
+          const quote = quotes[trade.ticker];
+          if (!quote) continue;
+          const trigger = paperTradeTrigger(trade, quote.price);
+          if (!trigger) continue;
+          closePaperTrade(trade.id, quote.price);
+          addNotification({
+            ticker: trade.ticker,
+            condition: trigger.condition,
+            targetPrice: trigger.level,
+            triggeredPrice: quote.price,
+          });
+          firePaperTradeBrowserNotification(
+            trade.ticker,
+            trigger.condition,
+            quote.price,
+            trade.id,
+          );
         }
       } catch {
         // Swallow — next tick will retry.
@@ -68,9 +106,22 @@ export default function AlertsManager() {
   return null;
 }
 
-function didTrigger(alert: PriceAlert, price: number): boolean {
+function didTriggerAlert(alert: PriceAlert, price: number): boolean {
   if (alert.condition === "above") return price >= alert.targetPrice;
   return price <= alert.targetPrice;
+}
+
+function paperTradeTrigger(
+  trade: PaperTrade,
+  price: number,
+): { condition: "stop-loss" | "take-profit"; level: number } | null {
+  if (trade.stopLoss != null && price <= trade.stopLoss) {
+    return { condition: "stop-loss", level: trade.stopLoss };
+  }
+  if (trade.takeProfit != null && price >= trade.takeProfit) {
+    return { condition: "take-profit", level: trade.takeProfit };
+  }
+  return null;
 }
 
 function fireEmail(alert: PriceAlert): void {
@@ -98,7 +149,7 @@ function fireEmail(alert: PriceAlert): void {
     });
 }
 
-function fireNotification(alert: PriceAlert, price: number): void {
+function fireAlertBrowserNotification(alert: PriceAlert, price: number): void {
   if (typeof window === "undefined" || !("Notification" in window)) return;
   if (Notification.permission !== "granted") return;
   const verb = alert.condition === "above" ? "rose above" : "fell below";
@@ -110,6 +161,31 @@ function fireNotification(alert: PriceAlert, price: number): void {
     new Notification(`${alert.ticker} ${verb} ${target}`, {
       body: `Now trading at ${current}`,
       tag: alert.id,
+    });
+  } catch {
+    // Some browsers reject Notification construction in insecure contexts.
+  }
+}
+
+function firePaperTradeBrowserNotification(
+  ticker: string,
+  condition: "stop-loss" | "take-profit",
+  price: number,
+  tradeId: string,
+): void {
+  if (typeof window === "undefined" || !("Notification" in window)) return;
+  if (Notification.permission !== "granted") return;
+  const current = `$${price.toLocaleString("en-US", {
+    maximumFractionDigits: 2,
+  })}`;
+  const title =
+    condition === "stop-loss"
+      ? `📉 Stop-loss triggered: ${ticker} closed at ${current}`
+      : `🎯 Take-profit triggered: ${ticker} closed at ${current}`;
+  try {
+    new Notification(title, {
+      body: "Paper position auto-closed.",
+      tag: `paper-${tradeId}`,
     });
   } catch {
     // Some browsers reject Notification construction in insecure contexts.

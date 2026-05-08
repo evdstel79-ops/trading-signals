@@ -35,6 +35,8 @@ export default function TradeModal({
   );
   const [quantity, setQuantity] = useState("100");
   const [note, setNote] = useState("");
+  const [stopLoss, setStopLoss] = useState("");
+  const [takeProfit, setTakeProfit] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -66,6 +68,26 @@ export default function TradeModal({
       return;
     }
 
+    let stopLossValue: number | null = null;
+    if (stopLoss.trim()) {
+      const parsed = Number(stopLoss);
+      if (!Number.isFinite(parsed) || parsed <= 0) {
+        setError("Stop loss must be a positive number.");
+        return;
+      }
+      stopLossValue = parsed;
+    }
+
+    let takeProfitValue: number | null = null;
+    if (takeProfit.trim()) {
+      const parsed = Number(takeProfit);
+      if (!Number.isFinite(parsed) || parsed <= 0) {
+        setError("Take profit must be a positive number.");
+        return;
+      }
+      takeProfitValue = parsed;
+    }
+
     setSubmitting(true);
     try {
       const res = await fetch(`/api/quotes?tickers=${encodeURIComponent(cleanTicker)}`);
@@ -85,6 +107,8 @@ export default function TradeModal({
         entryPrice: quote.price,
         note: note.trim(),
         source,
+        stopLoss: stopLossValue,
+        takeProfit: takeProfitValue,
       });
       onSaved?.(saved);
       onClose();
@@ -169,6 +193,34 @@ export default function TradeModal({
               className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:border-neutral-700 dark:bg-neutral-950"
             />
           </Field>
+
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Stop loss $ (optional)">
+              <input
+                type="number"
+                min="0.01"
+                step="0.01"
+                value={stopLoss}
+                onChange={(e) => setStopLoss(e.target.value)}
+                placeholder="e.g. 45.00"
+                className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:border-neutral-700 dark:bg-neutral-950"
+              />
+            </Field>
+            <Field label="Take profit $ (optional)">
+              <input
+                type="number"
+                min="0.01"
+                step="0.01"
+                value={takeProfit}
+                onChange={(e) => setTakeProfit(e.target.value)}
+                placeholder="e.g. 55.00"
+                className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:border-neutral-700 dark:bg-neutral-950"
+              />
+            </Field>
+          </div>
+          <p className="text-xs text-neutral-500 dark:text-neutral-400">
+            Position closes automatically if price hits this level.
+          </p>
 
           <Field label="Note (optional)">
             <textarea

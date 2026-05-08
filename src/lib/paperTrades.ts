@@ -13,6 +13,10 @@ export type PaperTrade = {
   closedAt?: string;
   /** Price at which the trade was closed. Absent on open positions. */
   exitPrice?: number;
+  /** Auto-close if current price <= this level. */
+  stopLoss?: number | null;
+  /** Auto-close if current price >= this level. */
+  takeProfit?: number | null;
 };
 
 const STORAGE_KEY = "trading-signals.paper-trades.v1";

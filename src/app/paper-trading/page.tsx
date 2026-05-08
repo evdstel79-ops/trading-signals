@@ -349,6 +349,21 @@ function PositionsTable({
                   </td>
                   <td className="px-4 py-3 font-mono text-xs">
                     <TickerLink ticker={t.ticker} />
+                    {!t.closedAt &&
+                      (t.stopLoss != null || t.takeProfit != null) && (
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {t.stopLoss != null && (
+                            <span className="inline-flex rounded bg-red-50 px-1.5 py-0.5 text-[10px] font-medium text-red-700 dark:bg-red-950/40 dark:text-red-300">
+                              SL {currencyFmt.format(t.stopLoss)}
+                            </span>
+                          )}
+                          {t.takeProfit != null && (
+                            <span className="inline-flex rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+                              TP {currencyFmt.format(t.takeProfit)}
+                            </span>
+                          )}
+                        </div>
+                      )}
                   </td>
                   <td className="px-4 py-3">
                     <DirectionBadge direction={t.direction} />

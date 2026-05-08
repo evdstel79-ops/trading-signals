@@ -4,10 +4,15 @@ import { useEffect, useState } from "react";
 
 import type { AlertCondition } from "@/lib/priceAlerts";
 
+export type NotificationCondition =
+  | AlertCondition
+  | "stop-loss"
+  | "take-profit";
+
 export type AppNotification = {
   id: string;
   ticker: string;
-  condition: AlertCondition;
+  condition: NotificationCondition;
   targetPrice: number;
   triggeredPrice: number;
   triggeredAt: string;
@@ -45,7 +50,7 @@ export function saveNotifications(notifications: AppNotification[]): void {
 
 export function addNotification(input: {
   ticker: string;
-  condition: AlertCondition;
+  condition: NotificationCondition;
   targetPrice: number;
   triggeredPrice: number;
 }): AppNotification {

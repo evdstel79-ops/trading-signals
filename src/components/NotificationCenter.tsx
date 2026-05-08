@@ -124,7 +124,6 @@ function NotificationItem({
 }: {
   notification: AppNotification;
 }) {
-  const verb = notification.condition === "above" ? "above" : "below";
   const target = currencyFmt.format(notification.targetPrice);
   const triggered = currencyFmt.format(notification.triggeredPrice);
   const highlight = notification.read
@@ -145,7 +144,7 @@ function NotificationItem({
           <TickerLink ticker={notification.ticker} />
         </div>
         <div className="text-neutral-700 dark:text-neutral-300">
-          crossed {verb} {target} at{" "}
+          {describeCondition(notification.condition, target)} at{" "}
           <span className="font-mono">{triggered}</span>
         </div>
         <div className="mt-0.5 text-[11px] text-neutral-500 dark:text-neutral-400">
@@ -154,6 +153,22 @@ function NotificationItem({
       </div>
     </li>
   );
+}
+
+function describeCondition(
+  condition: AppNotification["condition"],
+  target: string,
+): string {
+  switch (condition) {
+    case "above":
+      return `crossed above ${target}`;
+    case "below":
+      return `crossed below ${target}`;
+    case "stop-loss":
+      return `📉 stop-loss hit at ${target}`;
+    case "take-profit":
+      return `🎯 take-profit hit at ${target}`;
+  }
 }
 
 function formatRelative(iso: string): string {
