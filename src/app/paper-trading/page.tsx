@@ -11,6 +11,7 @@ import {
   effectivePrice,
   loadPaperTrades,
   tradePnL,
+  updateTradeNote,
   type PaperTrade,
 } from "@/lib/paperTrades";
 
@@ -32,6 +33,12 @@ export default function PaperTradingPage() {
   const [quotesLoading, setQuotesLoading] = useState(false);
   const [quotesError, setQuotesError] = useState<string | null>(null);
   const [closingId, setClosingId] = useState<string | null>(null);
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+
+  function handleNoteSave(id: string, value: string) {
+    setTrades(updateTradeNote(id, value));
+    setEditingNoteId(null);
+  }
 
   useEffect(() => {
     setTrades(loadPaperTrades());
@@ -243,6 +250,9 @@ export default function PaperTradingPage() {
         quotesLoading={quotesLoading}
         onDelete={handleDelete}
         onClose={handleClose}
+        editingNoteId={editingNoteId}
+        onEditNote={setEditingNoteId}
+        onNoteSave={handleNoteSave}
       />
 
       {closedTrades.length > 0 && (
@@ -257,6 +267,9 @@ export default function PaperTradingPage() {
           quotesLoading={false}
           onDelete={handleDelete}
           onClose={undefined}
+          editingNoteId={editingNoteId}
+          onEditNote={setEditingNoteId}
+          onNoteSave={handleNoteSave}
         />
       )}
     </div>
@@ -274,6 +287,9 @@ function PositionsTable({
   quotesLoading,
   onDelete,
   onClose,
+  editingNoteId,
+  onEditNote,
+  onNoteSave,
 }: {
   title: string;
   trades: PaperTrade[];
@@ -285,6 +301,9 @@ function PositionsTable({
   quotesLoading: boolean;
   onDelete: (id: string) => void;
   onClose: ((trade: PaperTrade) => void) | undefined;
+  editingNoteId: string | null;
+  onEditNote: (id: string | null) => void;
+  onNoteSave: (id: string, value: string) => void;
 }) {
   return (
     <section>
@@ -399,11 +418,13 @@ function PositionsTable({
                     {pnl === null ? "—" : currencyFmt.format(pnl)}
                   </td>
                   <td className="max-w-xs px-4 py-3 text-xs text-neutral-600 dark:text-neutral-400">
-                    {t.note || (
-                      <span className="text-neutral-400 dark:text-neutral-600">
-                        —
-                      </span>
-                    )}
+                    <NoteCell
+                      trade={t}
+                      editing={editingNoteId === t.id}
+                      onEdit={() => onEditNote(t.id)}
+                      onCancel={() => onEditNote(null)}
+                      onSave={(value) => onNoteSave(t.id, value)}
+                    />
                   </td>
                   <td className="px-4 py-3 text-right">
                     <div className="inline-flex items-center gap-1">
@@ -467,6 +488,77 @@ function SummaryCard({
         </div>
       )}
     </div>
+  );
+}
+
+function NoteCell({
+  trade,
+  editing,
+  onEdit,
+  onCancel,
+  onSave,
+}: {
+  trade: PaperTrade;
+  editing: boolean;
+  onEdit: () => void;
+  onCancel: () => void;
+  onSave: (value: string) => void;
+}) {
+  const [draft, setDraft] = useState(trade.note);
+
+  useEffect(() => {
+    if (editing) setDraft(trade.note);
+  }, [editing, trade.note]);
+
+  if (editing) {
+    return (
+      <textarea
+        autoFocus
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => {
+          if (draft.trim() === trade.note.trim()) {
+            onCancel();
+          } else {
+            onSave(draft);
+          }
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") {
+            e.preventDefault();
+            onCancel();
+          }
+        }}
+        rows={2}
+        placeholder="Add a note…"
+        className="w-full resize-none rounded-md border border-neutral-200 bg-white px-2 py-1 text-xs focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:border-neutral-700 dark:bg-neutral-950"
+      />
+    );
+  }
+
+  if (!trade.note) {
+    return (
+      <button
+        type="button"
+        onClick={onEdit}
+        className="inline-flex items-center gap-1 text-neutral-400 hover:text-emerald-700 dark:text-neutral-600 dark:hover:text-emerald-300"
+        aria-label="Add note"
+      >
+        <span aria-hidden>✏️</span>
+        <span>Add note</span>
+      </button>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={onEdit}
+      title="Click to edit"
+      className="block w-full whitespace-pre-wrap text-left hover:text-neutral-900 dark:hover:text-neutral-100"
+    >
+      {trade.note}
+    </button>
   );
 }
 

@@ -17,6 +17,8 @@ export type PaperTrade = {
   stopLoss?: number | null;
   /** Auto-close if current price >= this level. */
   takeProfit?: number | null;
+  /** Free-form labels for journaling. Defaulted to [] when missing. */
+  tags?: string[];
 };
 
 const STORAGE_KEY = "trading-signals.paper-trades.v1";
@@ -65,6 +67,26 @@ export function closePaperTrade(id: string, exitPrice: number): PaperTrade[] {
   const closedAt = new Date().toISOString();
   const updated = loadPaperTrades().map((t) =>
     t.id === id && !t.closedAt ? { ...t, closedAt, exitPrice } : t,
+  );
+  savePaperTrades(updated);
+  return updated;
+}
+
+export function updateTradeNote(id: string, note: string): PaperTrade[] {
+  const next = note.trim();
+  const updated = loadPaperTrades().map((t) =>
+    t.id === id ? { ...t, note: next } : t,
+  );
+  savePaperTrades(updated);
+  return updated;
+}
+
+export function updateTradeTags(id: string, tags: string[]): PaperTrade[] {
+  const cleaned = Array.from(
+    new Set(tags.map((t) => t.trim()).filter(Boolean)),
+  );
+  const updated = loadPaperTrades().map((t) =>
+    t.id === id ? { ...t, tags: cleaned } : t,
   );
   savePaperTrades(updated);
   return updated;

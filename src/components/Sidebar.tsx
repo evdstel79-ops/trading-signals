@@ -64,6 +64,11 @@ const navItems: NavItem[] = [
     description: "Simulated trades + live P&L",
   },
   {
+    href: "/journal",
+    label: "Journal",
+    description: "Notes and tags per trade",
+  },
+  {
     href: "/compare",
     label: "Compare",
     description: "Two tickers side by side",
