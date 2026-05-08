@@ -11,11 +11,14 @@ export default function WatchlistButton({ ticker }: Props) {
   if (!ticker) return null;
   const watched = isInWatchlist(ticker);
 
-  async function handleToggle() {
+  // Fire-and-forget: the hook updates local state synchronously, so the star
+  // toggles on this render. The API round-trip continues in the background;
+  // the hook surfaces any failure via its `error` field and rolls back state.
+  function handleToggle() {
     if (watched) {
-      await removeFromWatchlist(ticker);
+      void removeFromWatchlist(ticker);
     } else {
-      await addToWatchlist(ticker);
+      void addToWatchlist(ticker);
     }
   }
 

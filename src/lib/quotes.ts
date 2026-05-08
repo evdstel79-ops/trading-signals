@@ -1,3 +1,5 @@
+import { getYahooAuth, YAHOO_HEADERS as YAHOO_AUTH_HEADERS } from "@/lib/yahooAuth";
+
 export type Quote = {
   ticker: string;
   price: number;
@@ -127,4 +129,97 @@ export async function fetchQuotes(
   const quotes: Record<string, Quote | null> = {};
   for (const [t, q] of results) quotes[t] = q;
   return quotes;
+}
+
+// Yahoo v7 quote endpoint returns this shape per symbol. Sector/industry are
+// not part of the response — for those, callers need the heavier fetchQuotes.
+type YahooV7Quote = {
+  symbol?: string;
+  currency?: string;
+  regularMarketPrice?: number;
+  regularMarketPreviousClose?: number;
+  longName?: string;
+  shortName?: string;
+};
+
+type YahooV7Response = {
+  quoteResponse?: {
+    result?: YahooV7Quote[];
+    error?: { code?: string; description?: string } | null;
+  };
+};
+
+async function fetchYahooBatch(
+  tickers: string[],
+  forceRefresh: boolean,
+): Promise<Record<string, Quote | null>> {
+  const empty = (): Record<string, Quote | null> =>
+    Object.fromEntries(tickers.map((t) => [t, null]));
+
+  const auth = await getYahooAuth(forceRefresh);
+  if (!auth) return empty();
+
+  const url = new URL("https://query1.finance.yahoo.com/v7/finance/quote");
+  url.searchParams.set("symbols", tickers.join(","));
+  url.searchParams.set("crumb", auth.crumb);
+
+  let res: Response;
+  try {
+    res = await fetch(url.toString(), {
+      headers: { ...YAHOO_AUTH_HEADERS, Cookie: auth.cookie },
+      next: { revalidate: 60 },
+    });
+  } catch {
+    return empty();
+  }
+
+  if ((res.status === 401 || res.status === 403) && !forceRefresh) {
+    return fetchYahooBatch(tickers, true);
+  }
+  if (!res.ok) return empty();
+
+  let data: YahooV7Response;
+  try {
+    data = (await res.json()) as YahooV7Response;
+  } catch {
+    return empty();
+  }
+  const result = data.quoteResponse?.result ?? [];
+
+  const map: Record<string, Quote | null> = empty();
+  for (const q of result) {
+    const sym = q.symbol;
+    if (!sym || typeof q.regularMarketPrice !== "number") continue;
+    map[sym] = {
+      ticker: sym,
+      symbol: sym,
+      price: q.regularMarketPrice,
+      currency: q.currency ?? "USD",
+      previousClose:
+        typeof q.regularMarketPreviousClose === "number"
+          ? q.regularMarketPreviousClose
+          : null,
+      longname: q.longName ?? q.shortName ?? null,
+      sector: null,
+      industry: null,
+    };
+  }
+  return map;
+}
+
+/**
+ * Batch quote fetch via Yahoo v7 — one HTTP request for all tickers. Trades
+ * sector/industry/longname-richness for ~Nx fewer round-trips. Use this when
+ * the caller only needs price + previousClose (e.g. the watchlist page).
+ */
+export async function fetchQuotesLite(
+  tickers: string[],
+): Promise<Record<string, Quote | null>> {
+  const unique = Array.from(
+    new Set(
+      tickers.map((t) => t.trim().toUpperCase()).filter(Boolean),
+    ),
+  );
+  if (unique.length === 0) return {};
+  return fetchYahooBatch(unique, false);
 }

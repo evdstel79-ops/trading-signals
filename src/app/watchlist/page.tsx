@@ -19,6 +19,16 @@ const currencyFmt = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 2,
 });
 
+// Module-scoped quotes cache. Survives client-side navigation away and back
+// to /watchlist, so repeat visits within 30s skip the Yahoo round-trip.
+const QUOTES_CACHE_TTL_MS = 30_000;
+type QuotesCacheEntry = {
+  key: string;
+  data: Record<string, Quote | null>;
+  at: number;
+};
+let quotesCache: QuotesCacheEntry | null = null;
+
 export default function WatchlistPage() {
   const {
     items,
@@ -27,24 +37,41 @@ export default function WatchlistPage() {
     removeFromWatchlist,
   } = useWatchlist();
 
-  const [quotes, setQuotes] = useState<Record<string, Quote | null>>({});
+  const [quotes, setQuotes] = useState<Record<string, Quote | null>>(
+    () => quotesCache?.data ?? {},
+  );
   const [quotesLoading, setQuotesLoading] = useState(false);
   const [quotesError, setQuotesError] = useState<string | null>(null);
 
   useEffect(() => {
     if (watchlistLoading || items.length === 0) return;
-    const tickers = Array.from(new Set(items.map((i) => i.ticker)));
+    const tickers = Array.from(new Set(items.map((i) => i.ticker))).sort();
+    const cacheKey = tickers.join(",");
+
+    // Cache hit — useState's lazy init already seeded `quotes` from the
+    // cache on this mount, so there's nothing else to do. Bail out before
+    // touching state to avoid a cascading-render lint flag.
+    if (
+      quotesCache &&
+      quotesCache.key === cacheKey &&
+      Date.now() - quotesCache.at < QUOTES_CACHE_TTL_MS
+    ) {
+      return;
+    }
+
     let cancelled = false;
     setQuotesLoading(true);
     setQuotesError(null);
     (async () => {
       try {
         const res = await fetch(
-          `/api/quotes?tickers=${encodeURIComponent(tickers.join(","))}`,
+          `/api/quotes?lite=1&tickers=${encodeURIComponent(cacheKey)}`,
         );
         const data = (await res.json()) as QuotesResponse;
         if (cancelled) return;
-        setQuotes(data.quotes ?? {});
+        const next = data.quotes ?? {};
+        setQuotes(next);
+        quotesCache = { key: cacheKey, data: next, at: Date.now() };
       } catch (e) {
         if (cancelled) return;
         setQuotesError(
@@ -85,9 +112,9 @@ export default function WatchlistPage() {
         </div>
       )}
 
-      {watchlistLoading ? (
+      {watchlistLoading && items.length === 0 ? (
         <LoadingGrid />
-      ) : items.length === 0 ? (
+      ) : !watchlistLoading && items.length === 0 ? (
         <EmptyState />
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -170,10 +197,10 @@ function WatchCard({
 
       <div className="mt-3">
         {loading ? (
-          <>
-            <div className="h-7 w-24 animate-pulse rounded bg-neutral-200 dark:bg-neutral-800" />
-            <div className="mt-2 h-4 w-16 animate-pulse rounded bg-neutral-200 dark:bg-neutral-800" />
-          </>
+          <div className="flex h-12 items-center gap-2 text-xs text-neutral-500 dark:text-neutral-400">
+            <Spinner />
+            <span>Loading quote…</span>
+          </div>
         ) : quote ? (
           <>
             <div className="text-2xl font-semibold">
@@ -243,6 +270,32 @@ function EmptyState() {
         ticker here.
       </p>
     </div>
+  );
+}
+
+function Spinner() {
+  return (
+    <svg
+      className="h-4 w-4 animate-spin text-neutral-400 dark:text-neutral-500"
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden
+    >
+      <circle
+        cx="12"
+        cy="12"
+        r="9"
+        stroke="currentColor"
+        strokeWidth="2"
+        opacity="0.25"
+      />
+      <path
+        d="M21 12a9 9 0 0 0-9-9"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+    </svg>
   );
 }
 
