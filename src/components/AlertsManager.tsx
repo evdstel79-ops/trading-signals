@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { addNotification } from "@/lib/notifications";
 import { loadAlerts, saveAlerts, type PriceAlert } from "@/lib/priceAlerts";
 
 const POLL_MS = 60_000;
@@ -39,6 +40,12 @@ export default function AlertsManager() {
                 changed = true;
                 fireNotification(alert, quote.price);
                 fireEmail(alert);
+                addNotification({
+                  ticker: alert.ticker,
+                  condition: alert.condition,
+                  targetPrice: alert.targetPrice,
+                  triggeredPrice: quote.price,
+                });
               }
             }
             if (changed) saveAlerts(all);

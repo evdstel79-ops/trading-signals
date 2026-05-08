@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import NotificationCenter from "@/components/NotificationCenter";
 import ThemeToggle from "@/components/ThemeToggle";
 
 type NavItem = {
@@ -142,6 +143,11 @@ export default function Sidebar({
           </ul>
         </nav>
 
+        <div className="border-t border-neutral-200 px-3 py-3 dark:border-neutral-800">
+          <div className="px-3">
+            <NotificationCenter />
+          </div>
+        </div>
         <div className="flex items-center justify-between border-t border-neutral-200 px-6 py-4 text-xs text-neutral-500 dark:border-neutral-800 dark:text-neutral-400">
           <ThemeToggle />
           <span>v0.1.0</span>
