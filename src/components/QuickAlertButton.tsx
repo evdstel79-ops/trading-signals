@@ -19,9 +19,15 @@ const currencyFmt = new Intl.NumberFormat("en-US", {
 export default function QuickAlertButton({
   ticker,
   currentPrice,
+  label,
+  tone = "default",
 }: {
   ticker: string;
   currentPrice?: number | null;
+  /** When provided, renders a wider labeled trigger instead of the icon-only bell. */
+  label?: string;
+  /** Color tone for the labeled variant. Ignored when `label` is undefined. */
+  tone?: "default" | "amber";
 }) {
   const { alerts } = useAlerts();
   const [open, setOpen] = useState(false);
@@ -115,13 +121,22 @@ export default function QuickAlertButton({
         }
         aria-haspopup="dialog"
         aria-expanded={open}
-        className={`inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md p-1 transition-colors lg:min-h-0 lg:min-w-0 ${
-          hasActiveAlert
-            ? "text-emerald-600 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/40"
-            : "text-neutral-300 hover:bg-neutral-100 hover:text-emerald-600 dark:text-neutral-600 dark:hover:bg-neutral-800 dark:hover:text-emerald-400"
-        }`}
+        className={
+          label
+            ? `inline-flex items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium shadow-sm transition-colors ${
+                tone === "amber"
+                  ? "bg-amber-500 text-white hover:bg-amber-600 dark:bg-amber-600 dark:hover:bg-amber-700"
+                  : "bg-emerald-600 text-white hover:bg-emerald-700"
+              }`
+            : `inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md p-1 transition-colors lg:min-h-0 lg:min-w-0 ${
+                hasActiveAlert
+                  ? "text-emerald-600 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/40"
+                  : "text-neutral-300 hover:bg-neutral-100 hover:text-emerald-600 dark:text-neutral-600 dark:hover:bg-neutral-800 dark:hover:text-emerald-400"
+              }`
+        }
       >
         <BellIcon filled={hasActiveAlert} />
+        {label && <span>{label}</span>}
       </button>
 
       {open && (

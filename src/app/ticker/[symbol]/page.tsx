@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import EarningsHistoryChart from "@/components/EarningsHistoryChart";
+import TickerActions from "@/components/TickerActions";
 import TickerChart, {
   type ChartTradeMarker,
 } from "@/components/TickerChart";
@@ -12,6 +14,11 @@ import {
   type PoliticalTrade,
 } from "@/lib/politicalSignals";
 import { fetchQuotes, type Quote } from "@/lib/quotes";
+import {
+  fetchTickerFinancials,
+  type RecommendationKey,
+  type TickerFinancials,
+} from "@/lib/tickerFinancials";
 import {
   fetchTickerHistory,
   type HistoryPoint,
@@ -39,14 +46,21 @@ export default async function TickerPage({
   const ticker = decodeURIComponent(raw).toUpperCase();
   if (!ticker || !/^[A-Z][A-Z0-9.\-]*$/.test(ticker)) notFound();
 
-  const [quotesRes, historyRes, newsRes, politicalRes, insiderRes] =
-    await Promise.allSettled([
-      fetchQuotes([ticker]),
-      fetchTickerHistory(ticker, INITIAL_RANGE),
-      fetchTickerNews(ticker),
-      fetchPoliticalTrades(),
-      fetchInsiderTrades(),
-    ]);
+  const [
+    quotesRes,
+    historyRes,
+    newsRes,
+    politicalRes,
+    insiderRes,
+    financialsRes,
+  ] = await Promise.allSettled([
+    fetchQuotes([ticker]),
+    fetchTickerHistory(ticker, INITIAL_RANGE),
+    fetchTickerNews(ticker),
+    fetchPoliticalTrades(),
+    fetchInsiderTrades(),
+    fetchTickerFinancials(ticker),
+  ]);
 
   const quote: Quote | null =
     quotesRes.status === "fulfilled" ? quotesRes.value[ticker] ?? null : null;
@@ -57,6 +71,8 @@ export default async function TickerPage({
     politicalRes.status === "fulfilled" ? politicalRes.value : [];
   const insiderAll: InsiderTrade[] =
     insiderRes.status === "fulfilled" ? insiderRes.value : [];
+  const financials: TickerFinancials | null =
+    financialsRes.status === "fulfilled" ? financialsRes.value : null;
 
   const political = politicalAll.filter(
     (t) => t.ticker.toUpperCase() === ticker,
@@ -151,6 +167,21 @@ export default async function TickerPage({
         initialRange={INITIAL_RANGE}
         trades={tradeMarkers}
       />
+
+      {financials && <KeyStatistics financials={financials} />}
+      {financials && (
+        <AnalystRatings
+          financials={financials}
+          ticker={ticker}
+          currentPrice={quote?.price ?? null}
+        />
+      )}
+      {financials && financials.earningsHistory.length > 0 && (
+        <section>
+          <h2 className="mb-3 text-base font-semibold">Earnings history</h2>
+          <EarningsHistoryChart history={financials.earningsHistory} />
+        </section>
+      )}
 
       <NewsSection items={news} />
 
@@ -363,5 +394,209 @@ function SideBadge({ side }: { side: string }) {
     >
       {side}
     </span>
+  );
+}
+
+const compactNumberFmt = new Intl.NumberFormat("en-US", {
+  notation: "compact",
+  maximumFractionDigits: 1,
+});
+
+function KeyStatistics({ financials }: { financials: TickerFinancials }) {
+  const stats: { label: string; value: string }[] = [
+    {
+      label: "Market cap",
+      value:
+        financials.marketCap !== null
+          ? "$" + compactNumberFmt.format(financials.marketCap)
+          : "—",
+    },
+    {
+      label: "P/E ratio",
+      value:
+        financials.peRatio !== null ? financials.peRatio.toFixed(2) : "—",
+    },
+    {
+      label: "Forward P/E",
+      value:
+        financials.forwardPE !== null ? financials.forwardPE.toFixed(2) : "—",
+    },
+    {
+      label: "EPS (TTM)",
+      value:
+        financials.eps !== null
+          ? currencyFmt.format(financials.eps)
+          : "—",
+    },
+    {
+      label: "52-week high",
+      value:
+        financials.fiftyTwoWeekHigh !== null
+          ? currencyFmt.format(financials.fiftyTwoWeekHigh)
+          : "—",
+    },
+    {
+      label: "52-week low",
+      value:
+        financials.fiftyTwoWeekLow !== null
+          ? currencyFmt.format(financials.fiftyTwoWeekLow)
+          : "—",
+    },
+    {
+      label: "Beta",
+      value: financials.beta !== null ? financials.beta.toFixed(2) : "—",
+    },
+    {
+      label: "Dividend yield",
+      value:
+        financials.dividendYield !== null
+          ? (financials.dividendYield * 100).toFixed(2) + "%"
+          : "—",
+    },
+    {
+      label: "Avg volume",
+      value:
+        financials.avgVolume !== null
+          ? compactNumberFmt.format(financials.avgVolume)
+          : "—",
+    },
+  ];
+
+  return (
+    <section>
+      <h2 className="mb-3 text-base font-semibold">Key statistics</h2>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        {stats.map((s) => (
+          <div
+            key={s.label}
+            className="rounded-lg border border-neutral-200 bg-white p-3 dark:border-neutral-800 dark:bg-neutral-900"
+          >
+            <div className="text-[11px] font-medium uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+              {s.label}
+            </div>
+            <div className="mt-1 text-base font-semibold">{s.value}</div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+const RECOMMENDATION_LABELS: Record<RecommendationKey, string> = {
+  strong_buy: "Strong Buy",
+  buy: "Buy",
+  hold: "Hold",
+  underperform: "Underperform",
+  sell: "Sell",
+  none: "—",
+};
+
+const RECOMMENDATION_STYLES: Record<RecommendationKey, string> = {
+  strong_buy: "bg-emerald-600 text-white",
+  buy: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-200",
+  hold: "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-200",
+  underperform: "bg-orange-100 text-orange-800 dark:bg-orange-950/60 dark:text-orange-200",
+  sell: "bg-red-600 text-white",
+  none: "bg-neutral-200 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300",
+};
+
+function AnalystRatings({
+  financials,
+  ticker,
+  currentPrice,
+}: {
+  financials: TickerFinancials;
+  ticker: string;
+  currentPrice: number | null;
+}) {
+  const recoLabel = RECOMMENDATION_LABELS[financials.recommendationKey];
+  const recoStyle = RECOMMENDATION_STYLES[financials.recommendationKey];
+  const hasTargets =
+    financials.targetLowPrice !== null &&
+    financials.targetHighPrice !== null &&
+    financials.targetMeanPrice !== null;
+
+  return (
+    <section>
+      <h2 className="mb-3 text-base font-semibold">Analyst ratings</h2>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[auto_1fr]">
+        <div className="rounded-lg border border-neutral-200 bg-white p-4 text-center dark:border-neutral-800 dark:bg-neutral-900">
+          <div className="text-[11px] font-medium uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+            Recommendation
+          </div>
+          <div
+            className={`mt-2 inline-flex rounded-md px-3 py-1.5 text-base font-semibold ${recoStyle}`}
+          >
+            {recoLabel}
+          </div>
+          {financials.recommendationMean !== null && (
+            <div className="mt-2 text-xs text-neutral-500 dark:text-neutral-400">
+              Mean {financials.recommendationMean.toFixed(2)}
+              {financials.numberOfAnalystOpinions !== null && (
+                <> · {financials.numberOfAnalystOpinions} analysts</>
+              )}
+            </div>
+          )}
+          <div className="mt-3 flex justify-center">
+            <TickerActions ticker={ticker} currentPrice={currentPrice} />
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
+          <div className="mb-2 text-[11px] font-medium uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+            Price target
+          </div>
+          {hasTargets ? (
+            <PriceTargetBar
+              low={financials.targetLowPrice!}
+              mean={financials.targetMeanPrice!}
+              high={financials.targetHighPrice!}
+            />
+          ) : (
+            <div className="text-sm text-neutral-500 dark:text-neutral-400">
+              No analyst targets available.
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function PriceTargetBar({
+  low,
+  mean,
+  high,
+}: {
+  low: number;
+  mean: number;
+  high: number;
+}) {
+  const range = high - low;
+  const meanPct = range > 0 ? ((mean - low) / range) * 100 : 50;
+  return (
+    <div>
+      <div className="flex items-baseline justify-between text-xs">
+        <span className="font-mono font-semibold">{currencyFmt.format(low)}</span>
+        <span className="text-neutral-500 dark:text-neutral-400">
+          mean{" "}
+          <span className="font-mono font-semibold text-emerald-700 dark:text-emerald-300">
+            {currencyFmt.format(mean)}
+          </span>
+        </span>
+        <span className="font-mono font-semibold">{currencyFmt.format(high)}</span>
+      </div>
+      <div className="relative mt-2 h-2 rounded-full bg-gradient-to-r from-red-300 via-amber-300 to-emerald-400 dark:from-red-900 dark:via-amber-800 dark:to-emerald-700">
+        <div
+          aria-hidden
+          className="absolute top-1/2 h-3.5 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-neutral-900 dark:bg-white"
+          style={{ left: `${Math.max(0, Math.min(100, meanPct))}%` }}
+        />
+      </div>
+      <div className="mt-1 flex justify-between text-[10px] uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+        <span>Low</span>
+        <span>High</span>
+      </div>
+    </div>
   );
 }

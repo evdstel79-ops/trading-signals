@@ -1,3 +1,9 @@
+import {
+  getYahooAuth,
+  YAHOO_HEADERS,
+  type YahooAuth,
+} from "@/lib/yahooAuth";
+
 export type EarningsTiming = "BMO" | "AMC" | "unknown";
 
 export type TickerEarnings = {
@@ -11,136 +17,6 @@ export type TickerEarnings = {
   timing: EarningsTiming;
   companyName: string | null;
 };
-
-const USER_AGENT =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36";
-
-const SEC_CH_UA = {
-  "sec-ch-ua":
-    '"Chromium";v="130", "Google Chrome";v="130", "Not?A_Brand";v="99"',
-  "sec-ch-ua-mobile": "?0",
-  "sec-ch-ua-platform": '"Windows"',
-} as const;
-
-// Headers a real browser sends when *navigating* to a URL. Yahoo issues a
-// richer A3 session cookie under these — sending XHR-style headers instead
-// gets a 1-cookie response that /v1/test/getcrumb later 406s.
-const NAV_HEADERS = {
-  "User-Agent": USER_AGENT,
-  Accept:
-    "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-  "Accept-Language": "en-US,en;q=0.9",
-  "Upgrade-Insecure-Requests": "1",
-  "sec-fetch-dest": "document",
-  "sec-fetch-mode": "navigate",
-  "sec-fetch-site": "none",
-  ...SEC_CH_UA,
-} as const;
-
-// XHR-style headers for API calls. Used with the cookies obtained via
-// NAV_HEADERS plus the crumb token.
-const YAHOO_HEADERS = {
-  "User-Agent": USER_AGENT,
-  Accept: "application/json",
-  "Accept-Language": "en-US,en;q=0.9",
-  "sec-fetch-dest": "empty",
-  "sec-fetch-mode": "cors",
-  "sec-fetch-site": "same-site",
-  Referer: "https://finance.yahoo.com/",
-  ...SEC_CH_UA,
-} as const;
-
-// Yahoo's quoteSummary endpoint is gated by a session cookie + a "crumb"
-// token. The handshake is:
-//   1. GET fc.yahoo.com to receive Set-Cookie headers (A1, A3, GUC, …).
-//   2. GET query1/v1/test/getcrumb with those cookies; the response body is
-//      the crumb string, which must be appended as &crumb=… on subsequent
-//      quoteSummary requests, with the same cookies attached.
-// We cache the pair at module scope and refresh on 401/403 or after 30 min.
-type YahooAuth = { crumb: string; cookie: string };
-let cachedAuth: (YahooAuth & { expiresAt: number }) | null = null;
-let inFlightAuth: Promise<YahooAuth | null> | null = null;
-const AUTH_TTL_MS = 30 * 60 * 1000;
-
-async function refreshYahooAuth(): Promise<YahooAuth | null> {
-  try {
-    // login.yahoo.com is hit with navigation-style headers so Yahoo issues
-    // a fully-signed multi-cookie session (A1, A1S, A3, GUC). fc.yahoo.com
-    // works as a fallback but gives a smaller cookie that's been observed
-    // to fail intermittently after the IP has been seen too many times.
-    const consentRes = await fetch(
-      "https://login.yahoo.com/?.intl=us&.lang=en-US&.done=https%3A%2F%2Ffinance.yahoo.com",
-      {
-        headers: NAV_HEADERS,
-        redirect: "manual",
-        cache: "no-store",
-      },
-    );
-    const setCookies = consentRes.headers.getSetCookie?.() ?? [];
-    console.log(
-      "[earnings] consent status:",
-      consentRes.status,
-      "cookies:",
-      setCookies.length,
-    );
-    if (setCookies.length === 0) return null;
-    const cookieHeader = setCookies
-      .map((entry) => entry.split(";", 1)[0])
-      .filter(Boolean)
-      .join("; ");
-    if (!cookieHeader) return null;
-
-    const crumbRes = await fetch(
-      "https://query1.finance.yahoo.com/v1/test/getcrumb",
-      {
-        // The crumb endpoint returns plain text, not JSON. Sending
-        // Accept: application/json triggers a 406 "Not Acceptable" — */*
-        // is required.
-        headers: { ...YAHOO_HEADERS, Accept: "*/*", Cookie: cookieHeader },
-        cache: "no-store",
-      },
-    );
-    console.log("[earnings] crumb status:", crumbRes.status);
-    if (!crumbRes.ok) return null;
-    const crumb = (await crumbRes.text()).trim();
-    if (!crumb) return null;
-    console.log(
-      "[earnings] auth ready · crumb:",
-      JSON.stringify(crumb),
-      "cookie:",
-      cookieHeader.slice(0, 80) + (cookieHeader.length > 80 ? "…" : ""),
-    );
-    return { crumb, cookie: cookieHeader };
-  } catch (err) {
-    console.log("[earnings] auth refresh threw:", err);
-    return null;
-  }
-}
-
-async function getYahooAuth(forceRefresh = false): Promise<YahooAuth | null> {
-  if (
-    !forceRefresh &&
-    cachedAuth &&
-    cachedAuth.expiresAt > Date.now()
-  ) {
-    return { crumb: cachedAuth.crumb, cookie: cachedAuth.cookie };
-  }
-  if (inFlightAuth && !forceRefresh) return inFlightAuth;
-  inFlightAuth = (async () => {
-    const fresh = await refreshYahooAuth();
-    if (fresh) {
-      cachedAuth = { ...fresh, expiresAt: Date.now() + AUTH_TTL_MS };
-    } else if (forceRefresh) {
-      cachedAuth = null;
-    }
-    return fresh;
-  })();
-  try {
-    return await inFlightAuth;
-  } finally {
-    inFlightAuth = null;
-  }
-}
 
 type YahooNumeric = { raw?: number; fmt?: string };
 
