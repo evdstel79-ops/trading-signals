@@ -84,6 +84,11 @@ const navItems: NavItem[] = [
     description: "Equal-weighted political-buy returns",
   },
   {
+    href: "/movers",
+    label: "Top Movers",
+    description: "Best and worst political buys",
+  },
+  {
     href: "/sectors",
     label: "Sectors",
     description: "Where Congress is rotating capital",
