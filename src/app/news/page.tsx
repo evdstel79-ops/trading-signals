@@ -237,47 +237,50 @@ function FilterButton({
 
 function NewsCard({ item }: { item: FeedItem }) {
   return (
-    <li>
-      <a
-        href={item.url}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="flex gap-3 rounded-lg border border-neutral-200 bg-white p-3 transition-colors hover:border-emerald-500 hover:bg-emerald-50/30 dark:border-neutral-800 dark:bg-neutral-900 dark:hover:border-emerald-600 dark:hover:bg-emerald-950/20"
-      >
-        {item.thumbnail && (
-          // eslint-disable-next-line @next/next/no-img-element
+    <li className="group flex gap-3 rounded-lg border border-neutral-200 bg-white p-3 transition-colors hover:border-emerald-500 hover:bg-emerald-50/30 dark:border-neutral-800 dark:bg-neutral-900 dark:hover:border-emerald-600 dark:hover:bg-emerald-950/20">
+      {item.thumbnail && (
+        <a
+          href={item.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label={item.title}
+          className="shrink-0"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={item.thumbnail}
             alt=""
             width={64}
             height={64}
             loading="lazy"
-            className="h-16 w-16 shrink-0 rounded-md object-cover"
+            className="h-16 w-16 rounded-md object-cover"
           />
-        )}
-        <div className="min-w-0 flex-1">
-          <div className="mb-1 flex items-center gap-2">
-            <Link
-              href={`/ticker/${encodeURIComponent(item.ticker)}`}
-              onClick={(e) => e.stopPropagation()}
-              className={`inline-flex rounded-md px-1.5 py-0.5 font-mono text-[11px] font-semibold ${tickerColor(
-                item.ticker,
-              )}`}
-            >
-              {item.ticker}
-            </Link>
-            <span className="truncate text-[11px] text-neutral-500 dark:text-neutral-400">
-              {item.publisher || "Yahoo Finance"}
-              {item.publishedAt && (
-                <> · {formatRelative(item.publishedAt)}</>
-              )}
-            </span>
-          </div>
-          <div className="line-clamp-2 text-sm font-medium leading-snug">
-            {item.title}
-          </div>
+        </a>
+      )}
+      <div className="min-w-0 flex-1">
+        <div className="mb-1 flex items-center gap-2">
+          <Link
+            href={`/ticker/${encodeURIComponent(item.ticker)}`}
+            className={`inline-flex rounded-md px-1.5 py-0.5 font-mono text-[11px] font-semibold ${tickerColor(
+              item.ticker,
+            )}`}
+          >
+            {item.ticker}
+          </Link>
+          <span className="truncate text-[11px] text-neutral-500 dark:text-neutral-400">
+            {item.publisher || "Yahoo Finance"}
+            {item.publishedAt && <> · {formatRelative(item.publishedAt)}</>}
+          </span>
         </div>
-      </a>
+        <a
+          href={item.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="line-clamp-2 text-sm font-medium leading-snug group-hover:text-emerald-700 dark:group-hover:text-emerald-300"
+        >
+          {item.title}
+        </a>
+      </div>
     </li>
   );
 }

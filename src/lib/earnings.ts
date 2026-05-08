@@ -12,12 +12,42 @@ export type TickerEarnings = {
   companyName: string | null;
 };
 
+const USER_AGENT =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36";
+
+const SEC_CH_UA = {
+  "sec-ch-ua":
+    '"Chromium";v="130", "Google Chrome";v="130", "Not?A_Brand";v="99"',
+  "sec-ch-ua-mobile": "?0",
+  "sec-ch-ua-platform": '"Windows"',
+} as const;
+
+// Headers a real browser sends when *navigating* to a URL. Yahoo issues a
+// richer A3 session cookie under these — sending XHR-style headers instead
+// gets a 1-cookie response that /v1/test/getcrumb later 406s.
+const NAV_HEADERS = {
+  "User-Agent": USER_AGENT,
+  Accept:
+    "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+  "Accept-Language": "en-US,en;q=0.9",
+  "Upgrade-Insecure-Requests": "1",
+  "sec-fetch-dest": "document",
+  "sec-fetch-mode": "navigate",
+  "sec-fetch-site": "none",
+  ...SEC_CH_UA,
+} as const;
+
+// XHR-style headers for API calls. Used with the cookies obtained via
+// NAV_HEADERS plus the crumb token.
 const YAHOO_HEADERS = {
-  "User-Agent":
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+  "User-Agent": USER_AGENT,
   Accept: "application/json",
   "Accept-Language": "en-US,en;q=0.9",
+  "sec-fetch-dest": "empty",
+  "sec-fetch-mode": "cors",
+  "sec-fetch-site": "same-site",
   Referer: "https://finance.yahoo.com/",
+  ...SEC_CH_UA,
 } as const;
 
 // Yahoo's quoteSummary endpoint is gated by a session cookie + a "crumb"
@@ -34,15 +64,25 @@ const AUTH_TTL_MS = 30 * 60 * 1000;
 
 async function refreshYahooAuth(): Promise<YahooAuth | null> {
   try {
-    // fc.yahoo.com/error returns 404 but sets the A3 session cookie that the
-    // crumb endpoint requires. fc.yahoo.com/ alone only sets a B cookie which
-    // is rejected by /v1/test/getcrumb (returns 406).
-    const consentRes = await fetch("https://fc.yahoo.com/error", {
-      headers: YAHOO_HEADERS,
-      redirect: "manual",
-      cache: "no-store",
-    });
+    // login.yahoo.com is hit with navigation-style headers so Yahoo issues
+    // a fully-signed multi-cookie session (A1, A1S, A3, GUC). fc.yahoo.com
+    // works as a fallback but gives a smaller cookie that's been observed
+    // to fail intermittently after the IP has been seen too many times.
+    const consentRes = await fetch(
+      "https://login.yahoo.com/?.intl=us&.lang=en-US&.done=https%3A%2F%2Ffinance.yahoo.com",
+      {
+        headers: NAV_HEADERS,
+        redirect: "manual",
+        cache: "no-store",
+      },
+    );
     const setCookies = consentRes.headers.getSetCookie?.() ?? [];
+    console.log(
+      "[earnings] consent status:",
+      consentRes.status,
+      "cookies:",
+      setCookies.length,
+    );
     if (setCookies.length === 0) return null;
     const cookieHeader = setCookies
       .map((entry) => entry.split(";", 1)[0])
@@ -53,15 +93,26 @@ async function refreshYahooAuth(): Promise<YahooAuth | null> {
     const crumbRes = await fetch(
       "https://query1.finance.yahoo.com/v1/test/getcrumb",
       {
-        headers: { ...YAHOO_HEADERS, Cookie: cookieHeader },
+        // The crumb endpoint returns plain text, not JSON. Sending
+        // Accept: application/json triggers a 406 "Not Acceptable" — */*
+        // is required.
+        headers: { ...YAHOO_HEADERS, Accept: "*/*", Cookie: cookieHeader },
         cache: "no-store",
       },
     );
+    console.log("[earnings] crumb status:", crumbRes.status);
     if (!crumbRes.ok) return null;
     const crumb = (await crumbRes.text()).trim();
     if (!crumb) return null;
+    console.log(
+      "[earnings] auth ready · crumb:",
+      JSON.stringify(crumb),
+      "cookie:",
+      cookieHeader.slice(0, 80) + (cookieHeader.length > 80 ? "…" : ""),
+    );
     return { crumb, cookie: cookieHeader };
-  } catch {
+  } catch (err) {
+    console.log("[earnings] auth refresh threw:", err);
     return null;
   }
 }
@@ -131,6 +182,7 @@ async function fetchQuoteSummary(
   const url = `https://query1.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(
     ticker,
   )}?modules=calendarEvents,price&crumb=${encodeURIComponent(auth.crumb)}`;
+  console.log("[earnings] GET", url);
   return fetch(url, {
     headers: { ...YAHOO_HEADERS, Cookie: auth.cookie },
     next: { revalidate: 3600 },
@@ -145,14 +197,31 @@ export async function fetchTickerEarnings(
 
   try {
     let auth = await getYahooAuth();
-    if (!auth) return emptyEarnings(trimmed);
+    if (!auth) {
+      console.log("[earnings]", trimmed, "no auth");
+      return emptyEarnings(trimmed);
+    }
     let res = await fetchQuoteSummary(trimmed, auth);
     // 401/403 means the cached crumb has aged out or the cookie was rotated;
     // grab a fresh pair and try once more.
     if (res.status === 401 || res.status === 403) {
+      console.log(
+        "[earnings]",
+        trimmed,
+        "auth rejected, refreshing crumb",
+      );
       auth = await getYahooAuth(true);
       if (!auth) return emptyEarnings(trimmed);
       res = await fetchQuoteSummary(trimmed, auth);
+    }
+    console.log("[earnings]", trimmed, "summary status:", res.status);
+    if (trimmed === "KO") {
+      const cloned = res.clone();
+      const body = await cloned.text();
+      console.log(
+        "[earnings] KO body (first 500):",
+        body.slice(0, 500),
+      );
     }
     if (!res.ok) return emptyEarnings(trimmed);
     const data = (await res.json()) as YahooQuoteSummaryResponse;
@@ -194,7 +263,8 @@ export async function fetchTickerEarnings(
       timing,
       companyName,
     };
-  } catch {
+  } catch (err) {
+    console.log("[earnings]", trimmed, "threw:", err);
     return emptyEarnings(trimmed);
   }
 }
