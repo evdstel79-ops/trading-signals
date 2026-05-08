@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { InsiderTrade } from "@/lib/insiderSignals";
 import ExportButton from "@/components/ExportButton";
@@ -277,7 +278,14 @@ export default function InsiderTradesPage() {
                   <td className="px-4 py-3 text-neutral-600 dark:text-neutral-400">
                     {t.filedAt}
                   </td>
-                  <td className="px-4 py-3 font-medium">{t.insiderName}</td>
+                  <td className="px-4 py-3 font-medium">
+                    <Link
+                      href={`/insiders/${encodeURIComponent(t.insiderName)}`}
+                      className="hover:text-emerald-700 hover:underline dark:hover:text-emerald-300"
+                    >
+                      {t.insiderName}
+                    </Link>
+                  </td>
                   <td className="px-4 py-3 text-neutral-600 dark:text-neutral-400">
                     {t.companyName}
                   </td>

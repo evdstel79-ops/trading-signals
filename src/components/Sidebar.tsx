@@ -37,6 +37,11 @@ const navItems: NavItem[] = [
     description: "Members ranked by trading return",
   },
   {
+    href: "/insiders",
+    label: "Insiders",
+    description: "Corporate insiders ranked by buys",
+  },
+  {
     href: "/political-trades",
     label: "Political Trades",
     description: "Congressional stock disclosures",

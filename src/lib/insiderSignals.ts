@@ -26,6 +26,8 @@ type DirectoryResponse = {
 export type InsiderTrade = {
   filedAt: string;
   insiderName: string;
+  /** Composed role label, e.g. "CEO, Director" or "10% Owner". Null if unknown. */
+  insiderTitle: string | null;
   companyName: string;
   ticker: string;
   transactionType: "buy" | "sell" | "other";
@@ -95,15 +97,39 @@ function pickValue(block: string, tag: string): string {
   return m?.[1]?.trim() ?? "";
 }
 
+function parseInsiderTitle(xml: string): string | null {
+  const isOfficer = /<isOfficer>\s*(?:true|1)\s*<\/isOfficer>/i.test(xml);
+  const isDirector = /<isDirector>\s*(?:true|1)\s*<\/isDirector>/i.test(xml);
+  const isTenPercent = /<isTenPercentOwner>\s*(?:true|1)\s*<\/isTenPercentOwner>/i.test(
+    xml,
+  );
+  const officerTitle = pick(xml, "officerTitle");
+
+  const parts: string[] = [];
+  if (isOfficer && officerTitle) parts.push(officerTitle);
+  else if (isOfficer) parts.push("Officer");
+  if (isDirector) parts.push("Director");
+  if (isTenPercent) parts.push("10% Owner");
+
+  return parts.length > 0 ? parts.join(", ") : null;
+}
+
 function parseForm4(
   xml: string,
 ): Pick<
   InsiderTrade,
-  "insiderName" | "companyName" | "ticker" | "transactionType" | "shares" | "value"
+  | "insiderName"
+  | "insiderTitle"
+  | "companyName"
+  | "ticker"
+  | "transactionType"
+  | "shares"
+  | "value"
 > | null {
   const insiderName = pick(xml, "rptOwnerName");
   const companyName = pick(xml, "issuerName");
   const ticker = pick(xml, "issuerTradingSymbol");
+  const insiderTitle = parseInsiderTitle(xml);
 
   if (!insiderName && !companyName) return null;
 
@@ -137,6 +163,7 @@ function parseForm4(
 
   return {
     insiderName,
+    insiderTitle,
     companyName,
     ticker,
     transactionType,
