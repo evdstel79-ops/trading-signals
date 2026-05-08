@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import GlobalSearch from "@/components/GlobalSearch";
 import NotificationCenter from "@/components/NotificationCenter";
 import ThemeToggle from "@/components/ThemeToggle";
 
@@ -117,6 +118,10 @@ export default function Sidebar({
               </div>
             </div>
           </Link>
+        </div>
+
+        <div className="px-3 pb-3">
+          <GlobalSearch />
         </div>
 
         <nav className="flex-1 overflow-y-auto px-3">

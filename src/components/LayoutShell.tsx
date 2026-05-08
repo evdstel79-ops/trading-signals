@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
+import GlobalSearch from "@/components/GlobalSearch";
 import Sidebar from "@/components/Sidebar";
 
 export default function LayoutShell({
@@ -68,6 +69,9 @@ export default function LayoutShell({
             </svg>
           </button>
           <span className="text-sm font-semibold">Trading Signals</span>
+          <div className="ml-auto min-w-0 max-w-[60%]">
+            <GlobalSearch compact />
+          </div>
         </header>
         <main className="flex-1 overflow-x-hidden">
           <div className="mx-auto max-w-7xl px-4 py-6 lg:px-10 lg:py-8">
