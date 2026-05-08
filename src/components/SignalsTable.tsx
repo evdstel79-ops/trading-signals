@@ -6,7 +6,6 @@ import QuickAlertButton from "@/components/QuickAlertButton";
 import TickerLink from "@/components/TickerLink";
 import WatchlistButton from "@/components/WatchlistButton";
 import { useSectors } from "@/lib/sectorData";
-import { useWatchlist } from "@/lib/watchlist";
 import type { SignalScore } from "@/lib/signalScoring";
 
 export type SignalSource = "political" | "insider";
@@ -25,8 +24,6 @@ export default function SignalsTable({
   ranked: RankedTicker[];
   maxScore: number;
 }) {
-  const { isWatched, toggle } = useWatchlist();
-
   const tickerList = useMemo(() => ranked.map((r) => r.ticker), [ranked]);
   const { sectors } = useSectors(tickerList);
 
@@ -123,11 +120,7 @@ export default function SignalsTable({
               </td>
               <td className="px-4 py-3 text-right">
                 <div className="inline-flex items-center gap-1">
-                  <WatchlistButton
-                    ticker={r.ticker}
-                    watched={isWatched(r.ticker)}
-                    onToggle={toggle}
-                  />
+                  <WatchlistButton ticker={r.ticker} />
                   <QuickAlertButton ticker={r.ticker} />
                 </div>
               </td>

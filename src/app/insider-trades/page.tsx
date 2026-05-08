@@ -11,7 +11,6 @@ import WatchlistButton from "@/components/WatchlistButton";
 import type { PaperTradeDirection } from "@/lib/paperTrades";
 import { useSectors } from "@/lib/sectorData";
 import type { SwingSignalScore } from "@/lib/signalScoring";
-import { useWatchlist } from "@/lib/watchlist";
 
 type ScoresResponse =
   | { scores: Array<{ ticker: string; score: SwingSignalScore }> }
@@ -66,7 +65,6 @@ export default function InsiderTradesPage() {
     col: "filedAt",
     dir: "desc",
   });
-  const { isWatched, toggle: toggleWatch } = useWatchlist();
   const [scoreMap, setScoreMap] = useState<Map<string, SwingSignalScore>>(
     () => new Map(),
   );
@@ -342,11 +340,7 @@ export default function InsiderTradesPage() {
                   </td>
                   <td className="px-4 py-3 text-right">
                     <div className="inline-flex items-center gap-1">
-                      <WatchlistButton
-                        ticker={t.ticker}
-                        watched={isWatched(t.ticker)}
-                        onToggle={toggleWatch}
-                      />
+                      <WatchlistButton ticker={t.ticker} />
                       <TradeButton
                         ticker={t.ticker}
                         direction={

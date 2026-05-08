@@ -20,14 +20,19 @@ const currencyFmt = new Intl.NumberFormat("en-US", {
 });
 
 export default function WatchlistPage() {
-  const { items, remove, mounted } = useWatchlist();
+  const {
+    items,
+    loading: watchlistLoading,
+    error: watchlistError,
+    removeFromWatchlist,
+  } = useWatchlist();
 
   const [quotes, setQuotes] = useState<Record<string, Quote | null>>({});
   const [quotesLoading, setQuotesLoading] = useState(false);
   const [quotesError, setQuotesError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!mounted || items.length === 0) return;
+    if (watchlistLoading || items.length === 0) return;
     const tickers = Array.from(new Set(items.map((i) => i.ticker)));
     let cancelled = false;
     setQuotesLoading(true);
@@ -52,7 +57,7 @@ export default function WatchlistPage() {
     return () => {
       cancelled = true;
     };
-  }, [mounted, items]);
+  }, [watchlistLoading, items]);
 
   // Sort newest-first within the page
   const sorted = [...items].sort((a, b) =>
@@ -69,13 +74,18 @@ export default function WatchlistPage() {
         </p>
       </header>
 
+      {watchlistError && (
+        <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+          Failed to load watchlist: {watchlistError}
+        </div>
+      )}
       {quotesError && (
         <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
           Live price fetch failed: {quotesError}
         </div>
       )}
 
-      {!mounted ? (
+      {watchlistLoading ? (
         <LoadingGrid />
       ) : items.length === 0 ? (
         <EmptyState />
@@ -87,7 +97,7 @@ export default function WatchlistPage() {
               item={item}
               quote={quotes[item.ticker] ?? null}
               loading={quotesLoading && !(item.ticker in quotes)}
-              onRemove={() => remove(item.ticker)}
+              onRemove={() => removeFromWatchlist(item.ticker)}
             />
           ))}
         </div>

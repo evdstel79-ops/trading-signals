@@ -2,7 +2,6 @@
 
 import TickerLink from "@/components/TickerLink";
 import WatchlistButton from "@/components/WatchlistButton";
-import { useWatchlist } from "@/lib/watchlist";
 import type { Correlation } from "@/lib/tradeCorrelation";
 import type { Party } from "@/lib/politicalSignals";
 
@@ -18,8 +17,6 @@ export default function CorrelationsTable({
   rows: CorrelationRow[];
   maxScore: number;
 }) {
-  const { isWatched, toggle } = useWatchlist();
-
   return (
     <div className="overflow-x-auto rounded-lg border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
       <table className="w-full text-left text-sm">
@@ -105,11 +102,7 @@ export default function CorrelationsTable({
                 </div>
               </td>
               <td className="px-4 py-3 text-right">
-                <WatchlistButton
-                  ticker={r.ticker}
-                  watched={isWatched(r.ticker)}
-                  onToggle={toggle}
-                />
+                <WatchlistButton ticker={r.ticker} />
               </td>
             </tr>
           ))}

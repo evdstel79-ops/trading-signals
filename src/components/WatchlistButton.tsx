@@ -1,17 +1,28 @@
 "use client";
 
+import { useWatchlist } from "@/lib/watchlist";
+
 type Props = {
   ticker: string;
-  watched: boolean;
-  onToggle: (ticker: string) => void;
 };
 
-export default function WatchlistButton({ ticker, watched, onToggle }: Props) {
+export default function WatchlistButton({ ticker }: Props) {
+  const { isInWatchlist, addToWatchlist, removeFromWatchlist } = useWatchlist();
   if (!ticker) return null;
+  const watched = isInWatchlist(ticker);
+
+  async function handleToggle() {
+    if (watched) {
+      await removeFromWatchlist(ticker);
+    } else {
+      await addToWatchlist(ticker);
+    }
+  }
+
   return (
     <button
       type="button"
-      onClick={() => onToggle(ticker)}
+      onClick={handleToggle}
       aria-label={
         watched ? `Remove ${ticker} from watchlist` : `Add ${ticker} to watchlist`
       }

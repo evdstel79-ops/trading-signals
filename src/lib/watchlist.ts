@@ -1,66 +1,217 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 export type WatchlistItem = {
   ticker: string;
   addedAt: string;
 };
 
-const STORAGE_KEY = "trading-signals.watchlist.v1";
+const LEGACY_STORAGE_KEY = "trading-signals.watchlist.v1";
+const MIGRATION_FLAG = "trading-signals.watchlist.migrated.v1";
+const API_URL = "/api/watchlist";
 
-export function loadWatchlist(): WatchlistItem[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? (parsed as WatchlistItem[]) : [];
-  } catch {
-    return [];
+type ListResponse = { items: WatchlistItem[] } | { error: string };
+type AddResponse = { item: WatchlistItem } | { error: string };
+type DeleteResponse = { removed: number } | { error: string };
+
+async function listWatchlist(): Promise<WatchlistItem[]> {
+  const res = await fetch(API_URL, { cache: "no-store" });
+  const data = (await res.json()) as ListResponse;
+  if (!res.ok || "error" in data) {
+    throw new Error("error" in data ? data.error : `HTTP ${res.status}`);
+  }
+  return data.items;
+}
+
+async function addWatchlist(symbol: string): Promise<WatchlistItem> {
+  const res = await fetch(API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ symbol }),
+  });
+  const data = (await res.json()) as AddResponse;
+  if (!res.ok || "error" in data) {
+    throw new Error("error" in data ? data.error : `HTTP ${res.status}`);
+  }
+  return data.item;
+}
+
+async function removeWatchlist(symbol: string): Promise<void> {
+  const res = await fetch(`${API_URL}?symbol=${encodeURIComponent(symbol)}`, {
+    method: "DELETE",
+  });
+  const data = (await res.json()) as DeleteResponse;
+  if (!res.ok || "error" in data) {
+    throw new Error("error" in data ? data.error : `HTTP ${res.status}`);
   }
 }
 
-export function saveWatchlist(items: WatchlistItem[]): void {
+/**
+ * One-shot move from the legacy localStorage key to Postgres. Best-effort:
+ * partial failures still flip the flag so we don't keep retrying forever.
+ */
+async function migrateLegacyToApi(): Promise<void> {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+  let store: Storage;
+  try {
+    store = window.localStorage;
+  } catch {
+    return;
+  }
+  if (store.getItem(MIGRATION_FLAG) === "1") return;
+
+  const raw = store.getItem(LEGACY_STORAGE_KEY);
+  if (!raw) {
+    store.setItem(MIGRATION_FLAG, "1");
+    return;
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    store.setItem(MIGRATION_FLAG, "1");
+    return;
+  }
+  if (!Array.isArray(parsed)) {
+    store.setItem(MIGRATION_FLAG, "1");
+    return;
+  }
+
+  for (const entry of parsed) {
+    if (!entry || typeof entry !== "object") continue;
+    const ticker = (entry as { ticker?: unknown }).ticker;
+    if (typeof ticker !== "string") continue;
+    try {
+      await addWatchlist(ticker);
+    } catch {
+      // Skip the bad row; others may still go through.
+    }
+  }
+
+  try {
+    store.removeItem(LEGACY_STORAGE_KEY);
+  } catch {
+    // ignore
+  }
+  store.setItem(MIGRATION_FLAG, "1");
 }
 
-export function useWatchlist() {
-  const [items, setItems] = useState<WatchlistItem[]>([]);
-  const [mounted, setMounted] = useState(false);
+export type WatchlistState = {
+  items: WatchlistItem[];
+  loading: boolean;
+  error: string | null;
+  refresh: () => Promise<void>;
+  addToWatchlist: (symbol: string) => Promise<void>;
+  removeFromWatchlist: (symbol: string) => Promise<void>;
+  isInWatchlist: (symbol: string) => boolean;
 
-  useEffect(() => {
-    setItems(loadWatchlist());
-    setMounted(true);
+  // Backward-compatible aliases for existing call sites:
+  toggle: (symbol: string) => Promise<void>;
+  remove: (symbol: string) => Promise<void>;
+  isWatched: (symbol: string) => boolean;
+  /** True once the initial fetch has resolved (success or failure). */
+  mounted: boolean;
+};
+
+export function useWatchlist(): WatchlistState {
+  const [items, setItems] = useState<WatchlistItem[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    try {
+      const next = await listWatchlist();
+      setItems(next);
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to load watchlist");
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  function isWatched(ticker: string): boolean {
-    if (!ticker) return false;
-    const t = ticker.toUpperCase();
-    return items.some((i) => i.ticker === t);
-  }
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      await migrateLegacyToApi();
+      if (cancelled) return;
+      await refresh();
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [refresh]);
 
-  function toggle(ticker: string): void {
-    if (!ticker) return;
-    const t = ticker.toUpperCase();
-    setItems((prev) => {
-      const next = prev.some((i) => i.ticker === t)
-        ? prev.filter((i) => i.ticker !== t)
-        : [...prev, { ticker: t, addedAt: new Date().toISOString() }];
-      saveWatchlist(next);
-      return next;
-    });
-  }
+  const isInWatchlist = useCallback(
+    (symbol: string): boolean => {
+      if (!symbol) return false;
+      const t = symbol.toUpperCase();
+      return items.some((i) => i.ticker === t);
+    },
+    [items],
+  );
 
-  function remove(ticker: string): void {
-    const t = ticker.toUpperCase();
-    setItems((prev) => {
-      const next = prev.filter((i) => i.ticker !== t);
-      saveWatchlist(next);
-      return next;
-    });
-  }
+  const addToWatchlist = useCallback(
+    async (symbol: string): Promise<void> => {
+      const t = symbol.trim().toUpperCase();
+      if (!t) return;
+      try {
+        const created = await addWatchlist(t);
+        setItems((prev) => {
+          const without = prev.filter((i) => i.ticker !== t);
+          return [created, ...without];
+        });
+        setError(null);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Failed to add to watchlist");
+      }
+    },
+    [],
+  );
 
-  return { items, isWatched, toggle, remove, mounted };
+  const removeFromWatchlist = useCallback(
+    async (symbol: string): Promise<void> => {
+      const t = symbol.trim().toUpperCase();
+      if (!t) return;
+      try {
+        await removeWatchlist(t);
+        setItems((prev) => prev.filter((i) => i.ticker !== t));
+        setError(null);
+      } catch (e) {
+        setError(
+          e instanceof Error ? e.message : "Failed to remove from watchlist",
+        );
+      }
+    },
+    [],
+  );
+
+  const toggle = useCallback(
+    async (symbol: string): Promise<void> => {
+      const t = symbol.trim().toUpperCase();
+      if (!t) return;
+      if (items.some((i) => i.ticker === t)) {
+        await removeFromWatchlist(t);
+      } else {
+        await addToWatchlist(t);
+      }
+    },
+    [items, addToWatchlist, removeFromWatchlist],
+  );
+
+  return {
+    items,
+    loading,
+    error,
+    refresh,
+    addToWatchlist,
+    removeFromWatchlist,
+    isInWatchlist,
+    toggle,
+    remove: removeFromWatchlist,
+    isWatched: isInWatchlist,
+    mounted: !loading,
+  };
 }
