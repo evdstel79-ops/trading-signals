@@ -117,6 +117,12 @@ export default async function TickerPage({
               · {quote.sector}
             </span>
           )}
+          <Link
+            href={`/compare?a=${encodeURIComponent(ticker)}`}
+            className="ml-auto inline-flex items-center rounded-md border border-neutral-200 bg-white px-3 py-1.5 text-xs font-medium text-neutral-700 hover:border-emerald-500 hover:text-emerald-700 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-300 dark:hover:border-emerald-600 dark:hover:text-emerald-300"
+          >
+            Compare with…
+          </Link>
         </header>
         <div className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1">
           <span className="text-3xl font-semibold">

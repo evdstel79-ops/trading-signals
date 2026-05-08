@@ -56,6 +56,11 @@ const navItems: NavItem[] = [
     label: "Paper Trading",
     description: "Simulated trades + live P&L",
   },
+  {
+    href: "/compare",
+    label: "Compare",
+    description: "Two tickers side by side",
+  },
 ];
 
 export default function Sidebar({
