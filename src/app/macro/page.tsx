@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import MacroAlertButton from "@/components/MacroAlertButton";
+import MacroAlertsList from "@/components/MacroAlertsList";
 import {
   flagFor,
   loadEconomicEvents,
@@ -59,6 +61,8 @@ export default async function MacroPage({
           <DateSection key={group.date} group={group} />
         ))
       )}
+
+      <MacroAlertsList />
 
       <p className="text-xs text-neutral-500 dark:text-neutral-400">
         Sourced from Fed, BLS, BEA, and ECB published schedules. Forecasts are
@@ -134,6 +138,9 @@ function EventRow({ event }: { event: EconomicEvent }) {
               <Stat label="Previous" value={event.previous} />
             )}
           </div>
+        )}
+        {event.impact === "high" && (
+          <MacroAlertButton event={event.event} date={event.date} />
         )}
       </div>
     </li>

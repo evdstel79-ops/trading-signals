@@ -7,7 +7,8 @@ import type { AlertCondition } from "@/lib/priceAlerts";
 export type NotificationCondition =
   | AlertCondition
   | "stop-loss"
-  | "take-profit";
+  | "take-profit"
+  | "macro";
 
 export type AppNotification = {
   id: string;
@@ -17,6 +18,10 @@ export type AppNotification = {
   triggeredPrice: number;
   triggeredAt: string;
   read: boolean;
+  /** Macro-only: full event name (e.g. "FOMC Rate Decision"). */
+  eventName?: string;
+  /** Macro-only: ISO date of the event (YYYY-MM-DD). */
+  eventDate?: string;
 };
 
 const STORAGE_KEY = "trading-signals.notifications.v1";
@@ -53,6 +58,8 @@ export function addNotification(input: {
   condition: NotificationCondition;
   targetPrice: number;
   triggeredPrice: number;
+  eventName?: string;
+  eventDate?: string;
 }): AppNotification {
   const notification: AppNotification = {
     id: genId(),
@@ -62,6 +69,8 @@ export function addNotification(input: {
     triggeredPrice: input.triggeredPrice,
     triggeredAt: new Date().toISOString(),
     read: false,
+    ...(input.eventName ? { eventName: input.eventName } : {}),
+    ...(input.eventDate ? { eventDate: input.eventDate } : {}),
   };
   const all = loadNotifications();
   all.unshift(notification);

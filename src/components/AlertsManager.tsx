@@ -1,6 +1,11 @@
 "use client";
 
 import { useEffect } from "react";
+import {
+  loadMacroAlerts,
+  markMacroAlertTriggered,
+  type MacroAlert,
+} from "@/lib/macroAlerts";
 import { addNotification } from "@/lib/notifications";
 import {
   closePaperTrade,
@@ -8,6 +13,8 @@ import {
   type PaperTrade,
 } from "@/lib/paperTrades";
 import { loadAlerts, saveAlerts, type PriceAlert } from "@/lib/priceAlerts";
+
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 const POLL_MS = 60_000;
 const INITIAL_DELAY_MS = 5_000;
@@ -23,6 +30,9 @@ export default function AlertsManager() {
     async function tick() {
       if (cancelled) return;
       try {
+        // Macro alerts don't need any network call.
+        processMacroAlerts(loadMacroAlerts());
+
         const activeAlerts = loadAlerts().filter((a) => !a.triggeredAt);
         const slTpTrades = loadPaperTrades().filter(
           (t) => !t.closedAt && (t.stopLoss != null || t.takeProfit != null),
@@ -162,6 +172,56 @@ function fireAlertBrowserNotification(alert: PriceAlert, price: number): void {
       body: `Now trading at ${current}`,
       tag: alert.id,
     });
+  } catch {
+    // Some browsers reject Notification construction in insecure contexts.
+  }
+}
+
+function processMacroAlerts(alerts: MacroAlert[]): void {
+  const now = Date.now();
+  for (const alert of alerts) {
+    if (alert.triggeredAt) continue;
+    const eventTs = Date.parse(alert.date);
+    if (!Number.isFinite(eventTs)) continue;
+    const fireAt = eventTs - alert.daysBeforeAlert * DAY_MS;
+    if (now < fireAt) continue;
+    // Don't fire alerts whose event is already in the past — that's a stale
+    // record the user didn't get to in time.
+    if (eventTs < now) {
+      markMacroAlertTriggered(alert.id);
+      continue;
+    }
+    const daysLeft = Math.max(0, Math.round((eventTs - now) / DAY_MS));
+    markMacroAlertTriggered(alert.id);
+    fireMacroBrowserNotification(alert, daysLeft);
+    addNotification({
+      ticker: "MACRO",
+      condition: "macro",
+      targetPrice: alert.daysBeforeAlert,
+      triggeredPrice: daysLeft,
+      eventName: alert.event,
+      eventDate: alert.date,
+    });
+  }
+}
+
+function fireMacroBrowserNotification(
+  alert: MacroAlert,
+  daysLeft: number,
+): void {
+  if (typeof window === "undefined" || !("Notification" in window)) return;
+  if (Notification.permission !== "granted") return;
+  const dateLabel = new Date(alert.date).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  });
+  const dayWord = daysLeft === 1 ? "day" : "days";
+  try {
+    new Notification(
+      `📊 ${alert.event} in ${daysLeft} ${dayWord} — ${dateLabel}`,
+      { tag: `macro-${alert.id}` },
+    );
   } catch {
     // Some browsers reject Notification construction in insecure contexts.
   }

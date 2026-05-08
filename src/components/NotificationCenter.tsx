@@ -124,8 +124,6 @@ function NotificationItem({
 }: {
   notification: AppNotification;
 }) {
-  const target = currencyFmt.format(notification.targetPrice);
-  const triggered = currencyFmt.format(notification.triggeredPrice);
   const highlight = notification.read
     ? ""
     : "bg-emerald-50/60 dark:bg-emerald-950/20";
@@ -140,18 +138,63 @@ function NotificationItem({
         />
       )}
       <div className={`min-w-0 flex-1 ${notification.read ? "pl-3.5" : ""}`}>
-        <div className="font-mono text-sm font-semibold">
-          <TickerLink ticker={notification.ticker} />
-        </div>
-        <div className="text-neutral-700 dark:text-neutral-300">
-          {describeCondition(notification.condition, target)} at{" "}
-          <span className="font-mono">{triggered}</span>
-        </div>
+        {notification.condition === "macro" ? (
+          <MacroNotificationBody notification={notification} />
+        ) : (
+          <PriceNotificationBody notification={notification} />
+        )}
         <div className="mt-0.5 text-[11px] text-neutral-500 dark:text-neutral-400">
           {formatRelative(notification.triggeredAt)}
         </div>
       </div>
     </li>
+  );
+}
+
+function PriceNotificationBody({
+  notification,
+}: {
+  notification: AppNotification;
+}) {
+  const target = currencyFmt.format(notification.targetPrice);
+  const triggered = currencyFmt.format(notification.triggeredPrice);
+  return (
+    <>
+      <div className="font-mono text-sm font-semibold">
+        <TickerLink ticker={notification.ticker} />
+      </div>
+      <div className="text-neutral-700 dark:text-neutral-300">
+        {describeCondition(notification.condition, target)} at{" "}
+        <span className="font-mono">{triggered}</span>
+      </div>
+    </>
+  );
+}
+
+function MacroNotificationBody({
+  notification,
+}: {
+  notification: AppNotification;
+}) {
+  const days = notification.triggeredPrice;
+  const dateLabel = notification.eventDate
+    ? new Date(notification.eventDate).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+        timeZone: "UTC",
+      })
+    : "";
+  return (
+    <>
+      <div className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">
+        📊 {notification.eventName ?? "Macro event"}
+      </div>
+      <div className="text-neutral-700 dark:text-neutral-300">
+        in {days} day{days === 1 ? "" : "s"}
+        {dateLabel && <> · {dateLabel}</>}
+      </div>
+    </>
   );
 }
 
@@ -168,6 +211,9 @@ function describeCondition(
       return `📉 stop-loss hit at ${target}`;
     case "take-profit":
       return `🎯 take-profit hit at ${target}`;
+    case "macro":
+      // Macro notifications use MacroNotificationBody; this branch is unreachable.
+      return "";
   }
 }
 

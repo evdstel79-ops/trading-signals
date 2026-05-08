@@ -1,6 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useMacroAlerts } from "@/lib/macroAlerts";
 import {
   useAlerts,
   type AlertCondition,
@@ -17,6 +19,8 @@ const currencyFmt = new Intl.NumberFormat("en-US", {
 
 export default function AlertsPage() {
   const { alerts, add, remove, mounted } = useAlerts();
+  const { alerts: macroAlerts, mounted: macroMounted } = useMacroAlerts();
+  const activeMacroCount = macroAlerts.filter((a) => !a.triggeredAt).length;
   const [ticker, setTicker] = useState("");
   const [condition, setCondition] = useState<AlertCondition>("above");
   const [targetPrice, setTargetPrice] = useState("");
@@ -105,6 +109,18 @@ export default function AlertsPage() {
           Get a browser notification when a ticker crosses your target price.
           Quotes polled every 60 seconds via Yahoo Finance.
         </p>
+        {macroMounted && activeMacroCount > 0 && (
+          <Link
+            href="/macro"
+            className="mt-2 inline-flex items-center gap-1 text-xs text-emerald-700 hover:underline dark:text-emerald-300"
+          >
+            <span aria-hidden>📊</span>
+            <span>
+              {activeMacroCount} macro alert{activeMacroCount === 1 ? "" : "s"}{" "}
+              active
+            </span>
+          </Link>
+        )}
       </header>
 
       <div className="rounded-lg border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
