@@ -1,0 +1,106 @@
+// Prisma schema for trading-signals.
+// Models mirror the localStorage shapes in src/lib/{watchlist,paperTrades,priceAlerts,macroAlerts,notifications}.ts
+// All user-owned rows are scoped by `deviceId` (anonymous UUID stored in an HTTP-only cookie).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Device {
+  id        String   @id
+  createdAt DateTime @default(now())
+
+  watchlist     WatchlistItem[]
+  paperTrades   PaperTrade[]
+  priceAlerts   PriceAlert[]
+  macroAlerts   MacroAlert[]
+  notifications Notification[]
+}
+
+model WatchlistItem {
+  device   Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  deviceId String
+  ticker   String
+  addedAt  DateTime @default(now())
+
+  @@id([deviceId, ticker])
+  @@index([deviceId])
+}
+
+model PaperTrade {
+  id         String    @id @default(cuid())
+  device     Device    @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  deviceId   String
+  ticker     String
+  /// "buy" | "sell"
+  direction  String
+  quantity   Float
+  entryPrice Float
+  note       String    @default("")
+  addedAt    DateTime  @default(now())
+  /// "political" | "insider" | "manual"
+  source     String?
+  closedAt   DateTime?
+  exitPrice  Float?
+  stopLoss   Float?
+  takeProfit Float?
+  tags       String[]  @default([])
+
+  @@index([deviceId])
+  @@index([deviceId, closedAt])
+}
+
+model PriceAlert {
+  id          String    @id @default(cuid())
+  device      Device    @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  deviceId    String
+  ticker      String
+  /// "above" | "below"
+  condition   String
+  targetPrice Float
+  createdAt   DateTime  @default(now())
+  triggeredAt DateTime?
+  email       String?
+
+  @@index([deviceId])
+  @@index([deviceId, triggeredAt])
+}
+
+model MacroAlert {
+  id              String    @id @default(cuid())
+  device          Device    @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  deviceId        String
+  event           String
+  /// YYYY-MM-DD; kept as string to match the existing app shape.
+  date            String
+  daysBeforeAlert Int
+  createdAt       DateTime  @default(now())
+  triggeredAt     DateTime?
+
+  @@index([deviceId])
+}
+
+model Notification {
+  id             String   @id @default(cuid())
+  device         Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  deviceId       String
+  ticker         String
+  /// "above" | "below" | "stop-loss" | "take-profit" | "macro"
+  condition      String
+  targetPrice    Float
+  triggeredPrice Float
+  triggeredAt    DateTime @default(now())
+  read           Boolean  @default(false)
+  /// Macro-only: full event name.
+  eventName      String?
+  /// Macro-only: ISO date of the event (YYYY-MM-DD).
+  eventDate      String?
+
+  @@index([deviceId])
+  @@index([deviceId, read])
+  @@index([deviceId, triggeredAt])
+}
