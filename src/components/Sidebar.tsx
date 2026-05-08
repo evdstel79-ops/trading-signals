@@ -32,6 +32,11 @@ const navGroups: NavGroup[] = [
         description: "Latest headlines for your watchlist",
       },
       {
+        href: "/earnings",
+        label: "Earnings",
+        description: "Upcoming earnings calendar",
+      },
+      {
         href: "/signals",
         label: "Signals",
         description: "Tickers ranked by signal strength",
