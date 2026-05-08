@@ -28,7 +28,17 @@ export default function BriefingPortfolio() {
   const [quotes, setQuotes] = useState<Record<string, Quote | null>>({});
 
   useEffect(() => {
-    setTrades(loadPaperTrades());
+    let cancelled = false;
+    loadPaperTrades()
+      .then((next) => {
+        if (!cancelled) setTrades(next);
+      })
+      .catch(() => {
+        if (!cancelled) setTrades([]);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {

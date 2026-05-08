@@ -6,12 +6,9 @@ import PortfolioChart, {
 } from "@/components/PortfolioChart";
 import TickerLink from "@/components/TickerLink";
 import {
-  closePaperTrade,
-  deletePaperTrade,
   effectivePrice,
-  loadPaperTrades,
   tradePnL,
-  updateTradeNote,
+  usePaperTrades,
   type PaperTrade,
 } from "@/lib/paperTrades";
 
@@ -28,21 +25,30 @@ const currencyFmt = new Intl.NumberFormat("en-US", {
 const numberFmt = new Intl.NumberFormat("en-US");
 
 export default function PaperTradingPage() {
-  const [trades, setTrades] = useState<PaperTrade[] | null>(null);
+  const {
+    trades,
+    error: tradesError,
+    closeTrade,
+    deleteTrade,
+    updateNote,
+  } = usePaperTrades();
   const [quotes, setQuotes] = useState<Record<string, Quote | null>>({});
   const [quotesLoading, setQuotesLoading] = useState(false);
   const [quotesError, setQuotesError] = useState<string | null>(null);
   const [closingId, setClosingId] = useState<string | null>(null);
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+  const [mutationError, setMutationError] = useState<string | null>(null);
 
-  function handleNoteSave(id: string, value: string) {
-    setTrades(updateTradeNote(id, value));
-    setEditingNoteId(null);
+  async function handleNoteSave(id: string, value: string) {
+    try {
+      await updateNote(id, value);
+      setEditingNoteId(null);
+    } catch (e) {
+      setMutationError(
+        e instanceof Error ? e.message : "Failed to save note",
+      );
+    }
   }
-
-  useEffect(() => {
-    setTrades(loadPaperTrades());
-  }, []);
 
   useEffect(() => {
     if (!trades || trades.length === 0) return;
@@ -82,9 +88,15 @@ export default function PaperTradingPage() {
     };
   }, [trades]);
 
-  function handleDelete(id: string) {
+  async function handleDelete(id: string) {
     if (!confirm("Delete this paper trade?")) return;
-    setTrades(deletePaperTrade(id));
+    try {
+      await deleteTrade(id);
+    } catch (e) {
+      setMutationError(
+        e instanceof Error ? e.message : "Failed to delete trade",
+      );
+    }
   }
 
   async function handleClose(trade: PaperTrade) {
@@ -102,7 +114,7 @@ export default function PaperTradingPage() {
         );
         return;
       }
-      setTrades(closePaperTrade(trade.id, quote.price));
+      await closeTrade(trade.id, quote.price);
     } catch (e) {
       alert(
         `Failed to close position: ${e instanceof Error ? e.message : "unknown error"}`,
@@ -229,6 +241,23 @@ export default function PaperTradingPage() {
 
       <PortfolioChart data={portfolioSeries} />
 
+      {tradesError && (
+        <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+          Failed to load trades: {tradesError}
+        </div>
+      )}
+      {mutationError && (
+        <div className="flex items-center justify-between gap-3 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+          <span>{mutationError}</span>
+          <button
+            type="button"
+            onClick={() => setMutationError(null)}
+            className="text-xs underline"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
       {quotesError && (
         <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
           Live price fetch failed: {quotesError}

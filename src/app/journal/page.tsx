@@ -46,7 +46,17 @@ export default function JournalPage() {
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
 
   useEffect(() => {
-    setTrades(loadPaperTrades());
+    let cancelled = false;
+    loadPaperTrades()
+      .then((next) => {
+        if (!cancelled) setTrades(next);
+      })
+      .catch(() => {
+        if (!cancelled) setTrades([]);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -81,13 +91,27 @@ export default function JournalPage() {
 
   const groups = useMemo(() => groupByDay(trades ?? []), [trades]);
 
-  function handleNoteSave(id: string, value: string) {
-    setTrades(updateTradeNote(id, value));
-    setEditingNoteId(null);
+  async function handleNoteSave(id: string, value: string) {
+    try {
+      const updated = await updateTradeNote(id, value);
+      setTrades((prev) =>
+        prev ? prev.map((t) => (t.id === updated.id ? updated : t)) : prev,
+      );
+      setEditingNoteId(null);
+    } catch {
+      // Leave the note input open; the user can retry.
+    }
   }
 
-  function handleTagsSave(id: string, tags: string[]) {
-    setTrades(updateTradeTags(id, tags));
+  async function handleTagsSave(id: string, tags: string[]) {
+    try {
+      const updated = await updateTradeTags(id, tags);
+      setTrades((prev) =>
+        prev ? prev.map((t) => (t.id === updated.id ? updated : t)) : prev,
+      );
+    } catch {
+      // Soft-fail; user can retry.
+    }
   }
 
   return (

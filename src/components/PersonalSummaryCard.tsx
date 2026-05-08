@@ -32,20 +32,32 @@ export default function PersonalSummaryCard() {
   const [tradesMounted, setTradesMounted] = useState(false);
 
   useEffect(() => {
-    const all = loadPaperTrades();
-    const open = all.filter((t) => !t.closedAt);
-    setOpenTrades(open);
-    setTradesMounted(true);
-
-    if (open.length === 0) {
-      setPnl(0);
-      setPnlReady(true);
-      return;
-    }
-
     let cancelled = false;
-    const tickers = Array.from(new Set(open.map((t) => t.ticker)));
     (async () => {
+      let open: PaperTrade[];
+      try {
+        const all = await loadPaperTrades();
+        if (cancelled) return;
+        open = all.filter((t) => !t.closedAt);
+      } catch {
+        if (!cancelled) {
+          setOpenTrades([]);
+          setTradesMounted(true);
+          setPnl(null);
+          setPnlReady(true);
+        }
+        return;
+      }
+      setOpenTrades(open);
+      setTradesMounted(true);
+
+      if (open.length === 0) {
+        setPnl(0);
+        setPnlReady(true);
+        return;
+      }
+
+      const tickers = Array.from(new Set(open.map((t) => t.ticker)));
       try {
         const res = await fetch(
           `/api/quotes?tickers=${encodeURIComponent(tickers.join(","))}`,

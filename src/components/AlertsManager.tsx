@@ -34,7 +34,10 @@ export default function AlertsManager() {
         processMacroAlerts(loadMacroAlerts());
 
         const activeAlerts = loadAlerts().filter((a) => !a.triggeredAt);
-        const slTpTrades = loadPaperTrades().filter(
+        const allPaperTrades = await loadPaperTrades().catch(
+          (): PaperTrade[] => [],
+        );
+        const slTpTrades = allPaperTrades.filter(
           (t) => !t.closedAt && (t.stopLoss != null || t.takeProfit != null),
         );
 
@@ -85,7 +88,12 @@ export default function AlertsManager() {
           if (!quote) continue;
           const trigger = paperTradeTrigger(trade, quote.price);
           if (!trigger) continue;
-          closePaperTrade(trade.id, quote.price);
+          try {
+            await closePaperTrade(trade.id, quote.price);
+          } catch {
+            // If the close API fails we'll re-evaluate on the next tick.
+            continue;
+          }
           addNotification({
             ticker: trade.ticker,
             condition: trigger.condition,

@@ -207,7 +207,7 @@ export default function TradeModal({
         setSubmitting(false);
         return;
       }
-      const saved = addPaperTrade({
+      const saved = await addPaperTrade({
         ticker: cleanTicker,
         direction,
         quantity: qty,
