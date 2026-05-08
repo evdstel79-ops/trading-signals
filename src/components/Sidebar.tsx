@@ -73,6 +73,11 @@ const navItems: NavItem[] = [
     label: "Backtest",
     description: "Equal-weighted political-buy returns",
   },
+  {
+    href: "/sectors",
+    label: "Sectors",
+    description: "Where Congress is rotating capital",
+  },
 ];
 
 export default function Sidebar({
