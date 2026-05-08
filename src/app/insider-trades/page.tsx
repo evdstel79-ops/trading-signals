@@ -4,12 +4,18 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { InsiderTrade } from "@/lib/insiderSignals";
 import ExportButton from "@/components/ExportButton";
+import ScoreBadge from "@/components/ScoreBadge";
 import TickerLink from "@/components/TickerLink";
 import TradeModal from "@/components/TradeModal";
 import WatchlistButton from "@/components/WatchlistButton";
 import type { PaperTradeDirection } from "@/lib/paperTrades";
 import { useSectors } from "@/lib/sectorData";
+import type { SwingSignalScore } from "@/lib/signalScoring";
 import { useWatchlist } from "@/lib/watchlist";
+
+type ScoresResponse =
+  | { scores: Array<{ ticker: string; score: SwingSignalScore }> }
+  | { error: string };
 
 type ApiResponse = { trades: InsiderTrade[] } | { error: string };
 type Side = InsiderTrade["transactionType"];
@@ -61,6 +67,27 @@ export default function InsiderTradesPage() {
     dir: "desc",
   });
   const { isWatched, toggle: toggleWatch } = useWatchlist();
+  const [scoreMap, setScoreMap] = useState<Map<string, SwingSignalScore>>(
+    () => new Map(),
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/signal-scores")
+      .then((r) => r.json() as Promise<ScoresResponse>)
+      .then((data) => {
+        if (cancelled || "error" in data) return;
+        const m = new Map<string, SwingSignalScore>();
+        for (const s of data.scores) m.set(s.ticker.toUpperCase(), s.score);
+        setScoreMap(m);
+      })
+      .catch(() => {
+        // Score badge is supplementary; fail silently.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   async function load(isRefresh: boolean) {
     if (isRefresh) setRefreshing(true);
@@ -290,7 +317,19 @@ export default function InsiderTradesPage() {
                     {t.companyName}
                   </td>
                   <td className="px-4 py-3 font-mono text-xs">
-                    <TickerLink ticker={t.ticker} />
+                    <span className="inline-flex items-center gap-1.5">
+                      <TickerLink ticker={t.ticker} />
+                      {t.ticker && scoreMap.has(t.ticker.toUpperCase()) && (
+                        <ScoreBadge
+                          score={
+                            scoreMap.get(t.ticker.toUpperCase())?.score ?? 1
+                          }
+                          title={scoreMap
+                            .get(t.ticker.toUpperCase())
+                            ?.reasons.join(" · ")}
+                        />
+                      )}
+                    </span>
                   </td>
                   <td className="px-4 py-3">
                     <SideBadge side={t.transactionType} />

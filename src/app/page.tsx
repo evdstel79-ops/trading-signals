@@ -9,6 +9,7 @@ import BriefingThisWeek, {
 import EarningsQuickCount from "@/components/EarningsQuickCount";
 import NewsQuickCount from "@/components/NewsQuickCount";
 import TickerLink from "@/components/TickerLink";
+import TopSignals from "@/components/TopSignals";
 import {
   highImpactThisWeek,
   loadEconomicEvents,
@@ -125,6 +126,8 @@ export default async function DashboardPage() {
         </div>
         <TopSignalHighlight signal={data.topSignal} />
       </section>
+
+      <TopSignals />
 
       <section>
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
