@@ -47,7 +47,7 @@ export default async function BacktestPage() {
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Backtest</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Backtest</h1>
         <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
           Equal-weighted return of every political buy with a known transaction
           date, marked-to-market against today&apos;s close.
@@ -150,11 +150,11 @@ function StatCard({
         ? "text-red-600 dark:text-red-400"
         : "text-neutral-900 dark:text-neutral-100";
   return (
-    <div className="rounded-lg border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
+    <div className="rounded-lg border border-neutral-200 bg-white p-4 transition-shadow hover:shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
       <div className="text-xs font-medium uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
         {label}
       </div>
-      <div className={`mt-1 text-lg font-semibold ${valueColor}`}>{value}</div>
+      <div className={`mt-1 text-lg font-bold tabular-nums ${valueColor}`}>{value}</div>
       {hint && (
         <div className="mt-0.5 text-xs text-neutral-500 dark:text-neutral-400">
           {hint}

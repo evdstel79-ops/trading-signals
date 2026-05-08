@@ -99,7 +99,7 @@ export default async function SignalsPage() {
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Signals</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Signals</h1>
         <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
           Tickers ranked by combined political + insider trading activity.
           Score blends recency, dollar size, direction, and trader consensus.

@@ -62,7 +62,7 @@ export default function WatchlistPage() {
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Watchlist</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Watchlist</h1>
         <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
           Tickers you&apos;ve starred from political and insider trade signals.
           Live prices via Yahoo Finance.

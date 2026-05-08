@@ -116,7 +116,7 @@ export default async function PartiesPage() {
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Parties</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Parties</h1>
         <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
           Republicans vs. Democrats — disclosed trading activity, sector
           allocation, and the most active members in each caucus.

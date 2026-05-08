@@ -93,7 +93,7 @@ export default function JournalPage() {
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Trade journal</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Trade journal</h1>
         <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
           Every paper trade you&apos;ve opened, with notes and tags for
           reflection. Stored locally in this browser.
@@ -379,7 +379,7 @@ function DirectionBadge({ direction }: { direction: PaperTrade["direction"] }) {
       : "bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300";
   return (
     <span
-      className={`inline-flex rounded-md px-2 py-0.5 text-xs font-medium ${styles}`}
+      className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${styles}`}
     >
       {direction}
     </span>

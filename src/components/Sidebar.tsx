@@ -199,7 +199,7 @@ export default function Sidebar({
                   : "mt-4 border-t border-neutral-200 pt-3 dark:border-neutral-800"
               }
             >
-              <div className="px-3 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
+              <div className="px-3 pb-1.5 text-[11px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
                 {group.label}
               </div>
               <ul className="space-y-1">
@@ -213,10 +213,10 @@ export default function Sidebar({
                       <Link
                         href={item.href}
                         onClick={onClose}
-                        className={`block min-h-[44px] rounded-md px-3 py-2 text-sm transition-colors lg:min-h-0 ${
+                        className={`block min-h-[44px] rounded-md border-l-2 px-3 py-2 text-sm transition-colors duration-100 lg:min-h-0 ${
                           isActive
-                            ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
-                            : "text-neutral-700 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800"
+                            ? "border-emerald-500 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
+                            : "border-transparent text-neutral-700 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800"
                         }`}
                       >
                         <div className="font-medium">{item.label}</div>

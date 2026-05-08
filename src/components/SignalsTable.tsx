@@ -94,6 +94,7 @@ export default function SignalsTable({
                   score={r.score.score}
                   maxScore={maxScore}
                   direction={r.score.direction}
+                  highlight={i === 0}
                 />
               </td>
               <td className="px-4 py-3">
@@ -143,10 +144,12 @@ function ScoreBar({
   score,
   maxScore,
   direction,
+  highlight = false,
 }: {
   score: number;
   maxScore: number;
   direction: SignalScore["direction"];
+  highlight?: boolean;
 }) {
   const fillColor =
     direction === "bullish"
@@ -165,7 +168,7 @@ function ScoreBar({
     <div className="flex items-center gap-2">
       <div className="relative h-2 w-32 overflow-hidden rounded-full bg-neutral-200 dark:bg-neutral-800">
         <div
-          className={`h-full ${fillColor}`}
+          className={`h-full ${fillColor} ${highlight ? "animate-score-shimmer" : ""}`}
           style={{ width: `${widthPct}%` }}
         />
       </div>
@@ -187,7 +190,7 @@ function DirectionBadge({ direction }: { direction: SignalScore["direction"] }) 
         : "bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400";
   return (
     <span
-      className={`inline-flex rounded-md px-2 py-0.5 text-xs font-medium ${styles}`}
+      className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${styles}`}
     >
       {direction}
     </span>

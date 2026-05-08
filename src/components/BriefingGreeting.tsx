@@ -34,7 +34,7 @@ export default function BriefingGreeting() {
 
   return (
     <header>
-      <h1 className="text-2xl font-semibold tracking-tight">{greeting}</h1>
+      <h1 className="text-3xl font-bold tracking-tight">{greeting}</h1>
       <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
         {dateStr}
       </p>

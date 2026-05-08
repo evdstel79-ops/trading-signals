@@ -115,7 +115,7 @@ export default function NewsPage() {
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="text-2xl font-semibold tracking-tight">News</h1>
+        <h1 className="text-3xl font-bold tracking-tight">News</h1>
         <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
           Latest headlines for every ticker on your watchlist. Auto-refreshes
           every 5 minutes.

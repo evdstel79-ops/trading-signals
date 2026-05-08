@@ -41,7 +41,7 @@ export default async function CorrelationsPage() {
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Correlations</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Correlations</h1>
         <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
           Tickers traded by multiple members of Congress within a 90-day
           window. Score weights cluster size, bipartisan participation, and

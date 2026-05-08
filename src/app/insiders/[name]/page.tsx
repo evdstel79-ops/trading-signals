@@ -63,7 +63,7 @@ export default async function InsiderDetailPage({
           ← All insiders
         </Link>
         <header className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          <h1 className="text-2xl font-semibold tracking-tight">
+          <h1 className="text-3xl font-bold tracking-tight">
             {insiderName}
           </h1>
           {title && (
@@ -183,7 +183,7 @@ function SideBadge({ side }: { side: InsiderTrade["transactionType"] }) {
         : "bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300";
   return (
     <span
-      className={`inline-flex rounded-md px-2 py-0.5 text-xs font-medium ${styles}`}
+      className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${styles}`}
     >
       {side}
     </span>

@@ -560,7 +560,7 @@ function QuickAccessCard({
   return (
     <Link
       href={href}
-      className="group flex items-center gap-3 rounded-lg border border-neutral-200 bg-white p-4 transition-all hover:-translate-y-0.5 hover:border-emerald-500 hover:shadow-sm dark:border-neutral-800 dark:bg-neutral-900 dark:hover:border-emerald-600"
+      className="group flex items-center gap-3 rounded-lg border border-neutral-200 bg-white p-4 transition-all duration-150 hover:-translate-y-0.5 hover:border-emerald-500 hover:shadow-md dark:border-neutral-800 dark:bg-neutral-900 dark:hover:border-emerald-600"
     >
       <span
         aria-hidden

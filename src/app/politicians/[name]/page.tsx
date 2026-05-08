@@ -89,7 +89,7 @@ export default async function PoliticianDetailPage({
           ← All politicians
         </Link>
         <header className="mt-2 flex items-baseline gap-3">
-          <h1 className="text-2xl font-semibold tracking-tight">
+          <h1 className="text-3xl font-bold tracking-tight">
             {memberName}
           </h1>
           <PartyBadge party={party} />
@@ -270,7 +270,7 @@ function SideBadge({ side }: { side: PoliticalTrade["transactionType"] }) {
           : "bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300";
   return (
     <span
-      className={`inline-flex rounded-md px-2 py-0.5 text-xs font-medium ${styles}`}
+      className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${styles}`}
     >
       {side}
     </span>

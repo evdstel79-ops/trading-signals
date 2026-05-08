@@ -147,7 +147,7 @@ export default function InsiderTradesPage() {
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="text-2xl font-semibold tracking-tight">
+        <h1 className="text-3xl font-bold tracking-tight">
           SEC Insider Trades
         </h1>
         <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
@@ -532,7 +532,7 @@ function SideBadge({ side }: { side: InsiderTrade["transactionType"] }) {
         : "bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300";
   return (
     <span
-      className={`inline-flex rounded-md px-2 py-0.5 text-xs font-medium ${styles}`}
+      className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${styles}`}
     >
       {side}
     </span>

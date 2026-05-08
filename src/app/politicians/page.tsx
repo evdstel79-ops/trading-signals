@@ -57,7 +57,7 @@ export default async function PoliticiansPage() {
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Politicians</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Politicians</h1>
         <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
           Members of Congress ranked by estimated trading return. Returns are
           computed for trades older than 30 days using capitoltrades&apos;

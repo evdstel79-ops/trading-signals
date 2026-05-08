@@ -132,7 +132,7 @@ function CompareView() {
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Compare</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Compare</h1>
         <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
           Side-by-side performance, signal flow, and recent trades for two
           tickers.

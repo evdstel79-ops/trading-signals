@@ -128,7 +128,7 @@ export default function PaperTradingPage() {
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Paper Trading</h1>
+        <h1 className="text-3xl font-bold tracking-tight">Paper Trading</h1>
         <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
           Track simulated trades opened from political and insider signals. Live
           prices via Yahoo Finance.
@@ -475,11 +475,11 @@ function SummaryCard({
         ? "text-red-600 dark:text-red-400"
         : "text-neutral-900 dark:text-neutral-100";
   return (
-    <div className="rounded-lg border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900">
+    <div className="rounded-lg border border-neutral-200 bg-white p-5 transition-shadow hover:shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
       <div className="text-xs font-medium uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
         {label}
       </div>
-      <div className={`mt-2 truncate text-2xl font-semibold ${valueColor}`}>
+      <div className={`mt-2 truncate text-2xl font-bold tabular-nums ${valueColor}`}>
         {value}
       </div>
       {hint && (
@@ -569,7 +569,7 @@ function DirectionBadge({ direction }: { direction: PaperTrade["direction"] }) {
       : "bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300";
   return (
     <span
-      className={`inline-flex rounded-md px-2 py-0.5 text-xs font-medium ${styles}`}
+      className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${styles}`}
     >
       {direction}
     </span>
