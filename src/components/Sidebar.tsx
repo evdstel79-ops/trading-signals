@@ -39,6 +39,11 @@ const navItems: NavItem[] = [
     description: "Members ranked by trading return",
   },
   {
+    href: "/parties",
+    label: "Parties",
+    description: "Republicans vs. Democrats breakdown",
+  },
+  {
     href: "/insiders",
     label: "Insiders",
     description: "Corporate insiders ranked by buys",
