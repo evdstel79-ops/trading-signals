@@ -2,6 +2,7 @@
 
 import { useMemo } from "react";
 import ExportButton from "@/components/ExportButton";
+import QuickAlertButton from "@/components/QuickAlertButton";
 import TickerLink from "@/components/TickerLink";
 import WatchlistButton from "@/components/WatchlistButton";
 import { useSectors } from "@/lib/sectorData";
@@ -58,7 +59,7 @@ export default function SignalsTable({
             <th className="px-4 py-3 text-right font-medium">Traders</th>
             <th className="px-4 py-3 text-right font-medium">Trades</th>
             <th className="px-4 py-3 font-medium">Sources</th>
-            <th className="px-4 py-3 text-right font-medium">Watchlist</th>
+            <th className="px-4 py-3 text-right font-medium">Actions</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800">
@@ -120,11 +121,14 @@ export default function SignalsTable({
                 </div>
               </td>
               <td className="px-4 py-3 text-right">
-                <WatchlistButton
-                  ticker={r.ticker}
-                  watched={isWatched(r.ticker)}
-                  onToggle={toggle}
-                />
+                <div className="inline-flex items-center gap-1">
+                  <WatchlistButton
+                    ticker={r.ticker}
+                    watched={isWatched(r.ticker)}
+                    onToggle={toggle}
+                  />
+                  <QuickAlertButton ticker={r.ticker} />
+                </div>
               </td>
             </tr>
           ))}

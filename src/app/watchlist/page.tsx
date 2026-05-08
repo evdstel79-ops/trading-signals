@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import QuickAlertButton from "@/components/QuickAlertButton";
 import { useWatchlist, type WatchlistItem } from "@/lib/watchlist";
 
 type Quote = {
@@ -127,22 +128,34 @@ function WatchCard({
         >
           {item.ticker}
         </Link>
-        <button
-          type="button"
-          onClick={onRemove}
-          aria-label={`Remove ${item.ticker} from watchlist`}
-          title="Remove from watchlist"
-          className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md p-1 text-neutral-400 hover:bg-red-50 hover:text-red-600 dark:text-neutral-500 dark:hover:bg-red-950/40 dark:hover:text-red-400 lg:min-h-0 lg:min-w-0"
-        >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
-            <path
-              d="M4 4l8 8M12 4l-8 8"
-              stroke="currentColor"
-              strokeWidth="1.5"
-              strokeLinecap="round"
-            />
-          </svg>
-        </button>
+        <div className="flex items-center gap-1">
+          <QuickAlertButton
+            ticker={item.ticker}
+            currentPrice={quote?.price ?? null}
+          />
+          <button
+            type="button"
+            onClick={onRemove}
+            aria-label={`Remove ${item.ticker} from watchlist`}
+            title="Remove from watchlist"
+            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md p-1 text-neutral-400 hover:bg-red-50 hover:text-red-600 dark:text-neutral-500 dark:hover:bg-red-950/40 dark:hover:text-red-400 lg:min-h-0 lg:min-w-0"
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 16 16"
+              fill="none"
+              aria-hidden
+            >
+              <path
+                d="M4 4l8 8M12 4l-8 8"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+              />
+            </svg>
+          </button>
+        </div>
       </div>
 
       <div className="mt-3">
