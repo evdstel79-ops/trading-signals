@@ -3,6 +3,10 @@ import Link from "next/link";
 import AlertsQuickCount from "@/components/AlertsQuickCount";
 import EarningsQuickCount from "@/components/EarningsQuickCount";
 import NewsQuickCount from "@/components/NewsQuickCount";
+import {
+  highImpactThisWeek,
+  loadEconomicEvents,
+} from "@/lib/economicCalendar";
 import PersonalSummaryCard from "@/components/PersonalSummaryCard";
 import TickerLink from "@/components/TickerLink";
 import { fetchInsiderTrades, type InsiderTrade } from "@/lib/insiderSignals";
@@ -69,6 +73,7 @@ export default async function DashboardPage() {
   const topTicker = [...tickerCounts.entries()].sort((a, b) => b[1] - a[1])[0];
 
   const data = await computeDashboardData(political, insider);
+  const macroHighImpact = highImpactThisWeek(loadEconomicEvents());
 
   const lastUpdated = new Date();
   const lastUpdatedLabel = lastUpdated.toLocaleString("en-US", {
@@ -168,6 +173,16 @@ export default async function DashboardPage() {
             icon="📅"
             title="Earnings"
             subtitle={<EarningsQuickCount />}
+          />
+          <QuickAccessCard
+            href="/macro"
+            icon="📊"
+            title="Macro"
+            subtitle={
+              macroHighImpact > 0
+                ? `${macroHighImpact} high-impact event${macroHighImpact === 1 ? "" : "s"} this week`
+                : "No high-impact events this week"
+            }
           />
         </div>
       </section>

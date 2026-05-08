@@ -37,6 +37,11 @@ const navGroups: NavGroup[] = [
         description: "Upcoming earnings calendar",
       },
       {
+        href: "/macro",
+        label: "Macro",
+        description: "FOMC, CPI, NFP and other releases",
+      },
+      {
         href: "/signals",
         label: "Signals",
         description: "Tickers ranked by signal strength",
