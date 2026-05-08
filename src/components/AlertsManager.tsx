@@ -38,6 +38,7 @@ export default function AlertsManager() {
                 alert.triggeredAt = now;
                 changed = true;
                 fireNotification(alert, quote.price);
+                fireEmail(alert);
               }
             }
             if (changed) saveAlerts(all);
@@ -63,6 +64,31 @@ export default function AlertsManager() {
 function didTrigger(alert: PriceAlert, price: number): boolean {
   if (alert.condition === "above") return price >= alert.targetPrice;
   return price <= alert.targetPrice;
+}
+
+function fireEmail(alert: PriceAlert): void {
+  const email = alert.email?.trim();
+  if (!email) return;
+  const params = new URLSearchParams({
+    ticker: alert.ticker,
+    email,
+    condition: alert.condition,
+    targetPrice: String(alert.targetPrice),
+  });
+  const url = `/api/check-alerts?${params.toString()}`;
+  console.log("[AlertsManager] Calling check-alerts:", url);
+  fetch(url, { cache: "no-store" })
+    .then(async (res) => {
+      const body = await res.text();
+      console.log(
+        "[AlertsManager] check-alerts response:",
+        res.status,
+        body,
+      );
+    })
+    .catch((err) => {
+      console.log("[AlertsManager] check-alerts failed:", err);
+    });
 }
 
 function fireNotification(alert: PriceAlert, price: number): void {

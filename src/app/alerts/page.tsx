@@ -1,11 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   useAlerts,
   type AlertCondition,
   type PriceAlert,
 } from "@/lib/priceAlerts";
+
+const EMAIL_STORAGE_KEY = "trading-signals.alert-email.v1";
 
 const currencyFmt = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -18,10 +20,33 @@ export default function AlertsPage() {
   const [ticker, setTicker] = useState("");
   const [condition, setCondition] = useState<AlertCondition>("above");
   const [targetPrice, setTargetPrice] = useState("");
+  const [email, setEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [permission, setPermission] = useState<NotificationPermission | null>(
     null,
   );
+
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(EMAIL_STORAGE_KEY);
+      if (stored) setEmail(stored);
+    } catch {
+      // localStorage unavailable; ignore.
+    }
+  }, []);
+
+  function handleEmailChange(value: string) {
+    setEmail(value);
+    try {
+      if (value) {
+        window.localStorage.setItem(EMAIL_STORAGE_KEY, value);
+      } else {
+        window.localStorage.removeItem(EMAIL_STORAGE_KEY);
+      }
+    } catch {
+      // localStorage unavailable; ignore.
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -51,7 +76,12 @@ export default function AlertsPage() {
       }
     }
 
-    add({ ticker: cleanTicker, condition, targetPrice: price });
+    add({
+      ticker: cleanTicker,
+      condition,
+      targetPrice: price,
+      email: email.trim() || undefined,
+    });
     setTicker("");
     setTargetPrice("");
     setCondition("above");
@@ -76,6 +106,22 @@ export default function AlertsPage() {
           Quotes polled every 60 seconds via Yahoo Finance.
         </p>
       </header>
+
+      <div className="rounded-lg border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
+        <Field label="Email for alerts" className="w-full max-w-md">
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => handleEmailChange(e.target.value)}
+            placeholder="you@example.com"
+            className="w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:border-neutral-700 dark:bg-neutral-950"
+          />
+        </Field>
+        <p className="mt-2 text-xs text-neutral-500 dark:text-neutral-400">
+          Saved locally in this browser. New alerts use this address; existing
+          alerts keep the address they were created with.
+        </p>
+      </div>
 
       <form
         onSubmit={handleSubmit}

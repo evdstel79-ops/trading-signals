@@ -11,6 +11,7 @@ export type PriceAlert = {
   targetPrice: number;
   createdAt: string;
   triggeredAt?: string;
+  email?: string;
 };
 
 const STORAGE_KEY = "trading-signals.price-alerts.v1";
@@ -48,13 +49,16 @@ export function addAlert(input: {
   ticker: string;
   condition: AlertCondition;
   targetPrice: number;
+  email?: string;
 }): PriceAlert {
+  const email = input.email?.trim();
   const alert: PriceAlert = {
     id: genId(),
     ticker: input.ticker.trim().toUpperCase(),
     condition: input.condition,
     targetPrice: input.targetPrice,
     createdAt: new Date().toISOString(),
+    ...(email ? { email } : {}),
   };
   const all = loadAlerts();
   all.push(alert);
@@ -103,6 +107,7 @@ export function useAlerts() {
     ticker: string;
     condition: AlertCondition;
     targetPrice: number;
+    email?: string;
   }): PriceAlert {
     const created = addAlert(input);
     setAlerts(loadAlerts());
