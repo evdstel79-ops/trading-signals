@@ -67,6 +67,11 @@ const navItems: NavItem[] = [
     label: "Compare",
     description: "Two tickers side by side",
   },
+  {
+    href: "/backtest",
+    label: "Backtest",
+    description: "Equal-weighted political-buy returns",
+  },
 ];
 
 export default function Sidebar({
