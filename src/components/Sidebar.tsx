@@ -12,91 +12,116 @@ type NavItem = {
   description: string;
 };
 
-const navItems: NavItem[] = [
+type NavGroup = {
+  label: string;
+  items: NavItem[];
+};
+
+const navGroups: NavGroup[] = [
   {
-    href: "/",
-    label: "Dashboard",
-    description: "Latest signals across all sources",
-  },
-  {
-    href: "/signals",
     label: "Signals",
-    description: "Tickers ranked by signal strength",
+    items: [
+      {
+        href: "/",
+        label: "Dashboard",
+        description: "Latest signals across all sources",
+      },
+      {
+        href: "/signals",
+        label: "Signals",
+        description: "Tickers ranked by signal strength",
+      },
+      {
+        href: "/correlations",
+        label: "Correlations",
+        description: "Tickers traded by multiple members",
+      },
+      {
+        href: "/movers",
+        label: "Top Movers",
+        description: "Best and worst political buys",
+      },
+      {
+        href: "/backtest",
+        label: "Backtest",
+        description: "Equal-weighted political-buy returns",
+      },
+    ],
   },
   {
-    href: "/correlations",
-    label: "Correlations",
-    description: "Tickers traded by multiple members",
+    label: "Analysis",
+    items: [
+      {
+        href: "/parties",
+        label: "Parties",
+        description: "Republicans vs. Democrats breakdown",
+      },
+      {
+        href: "/chambers",
+        label: "Chambers",
+        description: "House vs. Senate breakdown",
+      },
+      {
+        href: "/sectors",
+        label: "Sectors",
+        description: "Where Congress is rotating capital",
+      },
+      {
+        href: "/politicians",
+        label: "Politicians",
+        description: "Members ranked by trading return",
+      },
+      {
+        href: "/insiders",
+        label: "Insiders",
+        description: "Corporate insiders ranked by buys",
+      },
+    ],
   },
   {
-    href: "/alerts",
-    label: "Alerts",
-    description: "Price-cross browser notifications",
+    label: "Trading",
+    items: [
+      {
+        href: "/paper-trading",
+        label: "Paper Trading",
+        description: "Simulated trades + live P&L",
+      },
+      {
+        href: "/journal",
+        label: "Journal",
+        description: "Notes and tags per trade",
+      },
+      {
+        href: "/watchlist",
+        label: "Watchlist",
+        description: "Starred tickers + live prices",
+      },
+      {
+        href: "/alerts",
+        label: "Alerts",
+        description: "Price-cross browser notifications",
+      },
+    ],
   },
   {
-    href: "/politicians",
-    label: "Politicians",
-    description: "Members ranked by trading return",
-  },
-  {
-    href: "/parties",
-    label: "Parties",
-    description: "Republicans vs. Democrats breakdown",
-  },
-  {
-    href: "/chambers",
-    label: "Chambers",
-    description: "House vs. Senate breakdown",
-  },
-  {
-    href: "/insiders",
-    label: "Insiders",
-    description: "Corporate insiders ranked by buys",
-  },
-  {
-    href: "/political-trades",
-    label: "Political Trades",
-    description: "Congressional stock disclosures",
-  },
-  {
-    href: "/insider-trades",
-    label: "SEC Insider Trades",
-    description: "Form 4 filings from corporate insiders",
-  },
-  {
-    href: "/watchlist",
-    label: "Watchlist",
-    description: "Starred tickers + live prices",
-  },
-  {
-    href: "/paper-trading",
-    label: "Paper Trading",
-    description: "Simulated trades + live P&L",
-  },
-  {
-    href: "/journal",
-    label: "Journal",
-    description: "Notes and tags per trade",
-  },
-  {
-    href: "/compare",
-    label: "Compare",
-    description: "Two tickers side by side",
-  },
-  {
-    href: "/backtest",
-    label: "Backtest",
-    description: "Equal-weighted political-buy returns",
-  },
-  {
-    href: "/movers",
-    label: "Top Movers",
-    description: "Best and worst political buys",
-  },
-  {
-    href: "/sectors",
-    label: "Sectors",
-    description: "Where Congress is rotating capital",
+    label: "Data",
+    items: [
+      {
+        href: "/political-trades",
+        label: "Political Trades",
+        description: "Congressional stock disclosures",
+      },
+      {
+        href: "/insider-trades",
+        label: "SEC Insider Trades",
+        description: "Form 4 filings from corporate insiders",
+      },
+      {
+        href: "/compare",
+        label: "Compare",
+        description: "Two tickers side by side",
+      },
+    ],
   },
 ];
 
@@ -150,32 +175,46 @@ export default function Sidebar({
         </div>
 
         <nav className="flex-1 overflow-y-auto px-3">
-          <ul className="space-y-1">
-            {navItems.map((item) => {
-              const isActive =
-                item.href === "/"
-                  ? pathname === "/"
-                  : pathname.startsWith(item.href);
-              return (
-                <li key={item.href}>
-                  <Link
-                    href={item.href}
-                    onClick={onClose}
-                    className={`block min-h-[44px] rounded-md px-3 py-2 text-sm transition-colors lg:min-h-0 ${
-                      isActive
-                        ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
-                        : "text-neutral-700 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800"
-                    }`}
-                  >
-                    <div className="font-medium">{item.label}</div>
-                    <div className="text-xs text-neutral-500 dark:text-neutral-400">
-                      {item.description}
-                    </div>
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
+          {navGroups.map((group, groupIdx) => (
+            <div
+              key={group.label}
+              className={
+                groupIdx === 0
+                  ? ""
+                  : "mt-4 border-t border-neutral-200 pt-3 dark:border-neutral-800"
+              }
+            >
+              <div className="px-3 pb-1.5 text-[10px] font-semibold uppercase tracking-wider text-neutral-500 dark:text-neutral-400">
+                {group.label}
+              </div>
+              <ul className="space-y-1">
+                {group.items.map((item) => {
+                  const isActive =
+                    item.href === "/"
+                      ? pathname === "/"
+                      : pathname.startsWith(item.href);
+                  return (
+                    <li key={item.href}>
+                      <Link
+                        href={item.href}
+                        onClick={onClose}
+                        className={`block min-h-[44px] rounded-md px-3 py-2 text-sm transition-colors lg:min-h-0 ${
+                          isActive
+                            ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
+                            : "text-neutral-700 hover:bg-neutral-100 dark:text-neutral-300 dark:hover:bg-neutral-800"
+                        }`}
+                      >
+                        <div className="font-medium">{item.label}</div>
+                        <div className="text-xs text-neutral-500 dark:text-neutral-400">
+                          {item.description}
+                        </div>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
         </nav>
 
         <div className="border-t border-neutral-200 px-3 py-3 dark:border-neutral-800">
