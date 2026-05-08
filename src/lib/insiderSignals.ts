@@ -180,7 +180,9 @@ function tickerFromDisplayName(displayName?: string): string {
 
 export async function fetchInsiderTrades(): Promise<InsiderTrade[]> {
   const hits = await fetchSearchIndex();
-  const top = hits.slice(0, 20);
+  // EDGAR's efts search-index returns up to ~10 hits per "page"; cap at 100
+  // to cover roughly the first 10 pages of results.
+  const top = hits.slice(0, 100);
 
   const results = await Promise.all(
     top.map(async (hit): Promise<InsiderTrade | null> => {

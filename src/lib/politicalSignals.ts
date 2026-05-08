@@ -1,5 +1,5 @@
 const CAPITOL_TRADES_BASE_URL = "https://www.capitoltrades.com/trades?pageSize=30";
-const PAGES_TO_FETCH = 5;
+const PAGES_TO_FETCH = 10;
 
 type RawCapitolTrade = {
   _txId?: number | string;
