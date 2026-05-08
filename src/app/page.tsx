@@ -1,14 +1,18 @@
 import Link from "next/link";
 
 import AlertsQuickCount from "@/components/AlertsQuickCount";
+import BriefingGreeting from "@/components/BriefingGreeting";
+import BriefingPortfolio from "@/components/BriefingPortfolio";
+import BriefingThisWeek, {
+  type NextMacro,
+} from "@/components/BriefingThisWeek";
 import EarningsQuickCount from "@/components/EarningsQuickCount";
 import NewsQuickCount from "@/components/NewsQuickCount";
+import TickerLink from "@/components/TickerLink";
 import {
   highImpactThisWeek,
   loadEconomicEvents,
 } from "@/lib/economicCalendar";
-import PersonalSummaryCard from "@/components/PersonalSummaryCard";
-import TickerLink from "@/components/TickerLink";
 import { fetchInsiderTrades, type InsiderTrade } from "@/lib/insiderSignals";
 import {
   fetchPoliticalTrades,
@@ -73,7 +77,28 @@ export default async function DashboardPage() {
   const topTicker = [...tickerCounts.entries()].sort((a, b) => b[1] - a[1])[0];
 
   const data = await computeDashboardData(political, insider);
-  const macroHighImpact = highImpactThisWeek(loadEconomicEvents());
+  const allMacroEvents = loadEconomicEvents();
+  const macroHighImpact = highImpactThisWeek(allMacroEvents);
+
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const politicalToday = political.filter(
+    (t) => t.filedAt.slice(0, 10) === todayStr,
+  ).length;
+  const insiderToday = insider.filter(
+    (t) => t.filedAt.slice(0, 10) === todayStr,
+  ).length;
+
+  const nextMacro: NextMacro =
+    allMacroEvents
+      .filter((e) => e.date >= todayStr)
+      .sort((a, b) => (a.date < b.date ? -1 : 1))[0] ?? null;
+  const briefingNextMacro: NextMacro = nextMacro
+    ? {
+        event: nextMacro.event,
+        date: nextMacro.date,
+        isFomc: nextMacro.isFomc,
+      }
+    : null;
 
   const lastUpdated = new Date();
   const lastUpdatedLabel = lastUpdated.toLocaleString("en-US", {
@@ -84,17 +109,21 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-8">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
-        <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
-          Live trading signals from political disclosures and SEC insider
-          filings.
-        </p>
-      </header>
+      <BriefingGreeting />
 
-      <section className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <PersonalSummaryCard />
-        <MarketPulseCard data={data} />
+      <section className="space-y-4">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+          Today&apos;s briefing
+        </h2>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <NewTodayCard
+            politicalToday={politicalToday}
+            insiderToday={insiderToday}
+          />
+          <BriefingPortfolio />
+          <BriefingThisWeek nextMacro={briefingNextMacro} />
+        </div>
+        <TopSignalHighlight signal={data.topSignal} />
       </section>
 
       <section>
@@ -402,94 +431,118 @@ function topEntry(
   return best;
 }
 
-function MarketPulseCard({ data }: { data: DashboardData }) {
-  const moverTone = !data.topSignal
-    ? "text-neutral-700 dark:text-neutral-300"
-    : data.topSignal.score.direction === "bullish"
-      ? "text-emerald-600 dark:text-emerald-400"
-      : data.topSignal.score.direction === "bearish"
-        ? "text-red-600 dark:text-red-400"
-        : "text-neutral-600 dark:text-neutral-400";
-
+function NewTodayCard({
+  politicalToday,
+  insiderToday,
+}: {
+  politicalToday: number;
+  insiderToday: number;
+}) {
+  const total = politicalToday + insiderToday;
   return (
     <div className="rounded-lg border border-neutral-200 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900">
-      <div className="mb-3 flex items-baseline justify-between">
-        <h2 className="text-sm font-semibold">Last 24h</h2>
-        <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
-          market pulse
-        </span>
+      <div className="text-xs font-medium uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+        New today
       </div>
-      <dl className="space-y-2 text-sm">
-        <PulseRow
-          label="New filings"
-          value={
-            <span className="font-mono">
-              {data.newFilings.toLocaleString("en-US")}
+      {total === 0 ? (
+        <p className="mt-2 text-sm text-neutral-500 dark:text-neutral-400">
+          No new filings today
+        </p>
+      ) : (
+        <>
+          <div className="mt-2 text-2xl font-semibold">
+            {total.toLocaleString("en-US")}{" "}
+            <span className="text-sm font-medium text-neutral-500 dark:text-neutral-400">
+              filings
             </span>
-          }
-        />
-        <PulseRow
-          label="Top mover"
-          value={
-            data.topSignal ? (
-              <span className="inline-flex items-baseline gap-1.5 font-mono text-xs">
-                <TickerLink ticker={data.topSignal.ticker} />
-                <span className={`font-medium ${moverTone}`}>
-                  score {data.topSignal.score.score.toFixed(1)}
-                </span>
-              </span>
-            ) : (
-              <span className="text-neutral-400 dark:text-neutral-600">—</span>
-            )
-          }
-        />
-        <PulseRow
-          label="Bullish sector (7d)"
-          value={
-            data.bullishSector ? (
-              <span className="text-emerald-700 dark:text-emerald-300">
-                {data.bullishSector.name}{" "}
-                <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
-                  ({data.bullishSector.count})
-                </span>
-              </span>
-            ) : (
-              <span className="text-neutral-400 dark:text-neutral-600">—</span>
-            )
-          }
-        />
-        <PulseRow
-          label="Bearish sector (7d)"
-          value={
-            data.bearishSector ? (
-              <span className="text-red-700 dark:text-red-300">
-                {data.bearishSector.name}{" "}
-                <span className="text-[11px] text-neutral-500 dark:text-neutral-400">
-                  ({data.bearishSector.count})
-                </span>
-              </span>
-            ) : (
-              <span className="text-neutral-400 dark:text-neutral-600">—</span>
-            )
-          }
-        />
-      </dl>
+          </div>
+          <div className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
+            <Link
+              href="/political-trades"
+              className="hover:text-emerald-700 hover:underline dark:hover:text-emerald-300"
+            >
+              {politicalToday} political
+            </Link>{" "}
+            ·{" "}
+            <Link
+              href="/insider-trades"
+              className="hover:text-emerald-700 hover:underline dark:hover:text-emerald-300"
+            >
+              {insiderToday} insider
+            </Link>
+          </div>
+        </>
+      )}
     </div>
   );
 }
 
-function PulseRow({
-  label,
-  value,
+function TopSignalHighlight({
+  signal,
 }: {
-  label: string;
-  value: React.ReactNode;
+  signal: { ticker: string; score: SignalScore } | null;
 }) {
+  if (!signal) {
+    return (
+      <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-5 text-sm text-neutral-500 dark:border-neutral-800 dark:bg-neutral-900 dark:text-neutral-400">
+        No signal data yet.
+      </div>
+    );
+  }
+
+  const dir = signal.score.direction;
+  const wrapperClass =
+    dir === "bullish"
+      ? "border-emerald-200 bg-gradient-to-br from-emerald-50 to-white dark:border-emerald-900 dark:from-emerald-950/40 dark:to-neutral-900"
+      : dir === "bearish"
+        ? "border-red-200 bg-gradient-to-br from-red-50 to-white dark:border-red-900 dark:from-red-950/40 dark:to-neutral-900"
+        : "border-neutral-200 bg-neutral-50 dark:border-neutral-800 dark:bg-neutral-900";
+  const dirBadgeClass =
+    dir === "bullish"
+      ? "bg-emerald-600 text-white"
+      : dir === "bearish"
+        ? "bg-red-600 text-white"
+        : "bg-neutral-300 text-neutral-700 dark:bg-neutral-700 dark:text-neutral-300";
+  const scoreClass =
+    dir === "bullish"
+      ? "text-emerald-700 dark:text-emerald-300"
+      : dir === "bearish"
+        ? "text-red-700 dark:text-red-300"
+        : "text-neutral-700 dark:text-neutral-300";
+
   return (
-    <div className="flex items-baseline justify-between gap-3">
-      <dt className="text-neutral-500 dark:text-neutral-400">{label}</dt>
-      <dd className="text-sm">{value}</dd>
-    </div>
+    <Link
+      href={`/ticker/${encodeURIComponent(signal.ticker)}`}
+      className={`flex flex-wrap items-center gap-4 rounded-lg border-2 p-5 transition-all hover:-translate-y-0.5 hover:shadow-md ${wrapperClass}`}
+    >
+      <div className="text-xs font-semibold uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+        Top signal right now
+      </div>
+      <div className="flex items-baseline gap-3">
+        <span className="font-mono text-3xl font-bold tracking-tight">
+          {signal.ticker}
+        </span>
+        <span
+          className={`rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${dirBadgeClass}`}
+        >
+          {dir}
+        </span>
+      </div>
+      <div className="ml-auto flex items-baseline gap-1.5 text-right">
+        <span className={`font-mono text-2xl font-bold tabular-nums ${scoreClass}`}>
+          {signal.score.score.toFixed(1)}
+        </span>
+        <span className="text-xs uppercase tracking-wide text-neutral-500 dark:text-neutral-400">
+          score
+        </span>
+      </div>
+      <span
+        aria-hidden
+        className="text-neutral-300 transition-transform group-hover:translate-x-0.5 dark:text-neutral-600"
+      >
+        →
+      </span>
+    </Link>
   );
 }
 
