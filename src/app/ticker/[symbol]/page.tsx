@@ -1,10 +1,16 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import EarningsHistoryChart from "@/components/EarningsHistoryChart";
+import ScoreBadge from "@/components/ScoreBadge";
+import TechnicalChart from "@/components/TechnicalChart";
 import TickerActions from "@/components/TickerActions";
 import TickerChart, {
   type ChartTradeMarker,
 } from "@/components/TickerChart";
+import {
+  aggregateAllSignals,
+  type RankedSignal,
+} from "@/lib/aggregateSignals";
 import {
   fetchInsiderTrades,
   type InsiderTrade,
@@ -53,6 +59,7 @@ export default async function TickerPage({
     politicalRes,
     insiderRes,
     financialsRes,
+    signalsRes,
   ] = await Promise.allSettled([
     fetchQuotes([ticker]),
     fetchTickerHistory(ticker, INITIAL_RANGE),
@@ -60,6 +67,7 @@ export default async function TickerPage({
     fetchPoliticalTrades(),
     fetchInsiderTrades(),
     fetchTickerFinancials(ticker),
+    aggregateAllSignals(),
   ]);
 
   const quote: Quote | null =
@@ -73,13 +81,27 @@ export default async function TickerPage({
     insiderRes.status === "fulfilled" ? insiderRes.value : [];
   const financials: TickerFinancials | null =
     financialsRes.status === "fulfilled" ? financialsRes.value : null;
+  const allSignals: RankedSignal[] =
+    signalsRes.status === "fulfilled" ? signalsRes.value : [];
 
-  const political = politicalAll.filter(
+  const tickerSignal: RankedSignal | null =
+    allSignals.find((s) => s.ticker === ticker) ?? null;
+
+  const politicalForTicker = politicalAll.filter(
     (t) => t.ticker.toUpperCase() === ticker,
   );
-  const insider = insiderAll.filter(
+  const insiderForTicker = insiderAll.filter(
     (t) => t.ticker.toUpperCase() === ticker,
   );
+
+  const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+  const cutoff = Date.now() - THIRTY_DAYS_MS;
+  const isRecent = (s: string): boolean => {
+    const ts = Date.parse(s);
+    return Number.isFinite(ts) && ts >= cutoff;
+  };
+  const political = politicalForTicker.filter((t) => isRecent(t.filedAt));
+  const insider = insiderForTicker.filter((t) => isRecent(t.filedAt));
 
   const tradeMarkers: ChartTradeMarker[] = [
     ...political.map(
@@ -160,6 +182,10 @@ export default async function TickerPage({
           )}
         </div>
       </div>
+
+      <TechnicalChart symbol={ticker} />
+
+      <SignalScoreCard signal={tickerSignal} />
 
       <TickerChart
         ticker={ticker}
@@ -264,7 +290,7 @@ function PoliticalTradesTable({ trades }: { trades: PoliticalTrade[] }) {
   return (
     <section>
       <h2 className="mb-3 text-base font-semibold">
-        Political trades ({trades.length})
+        Political trades · last 30 days ({trades.length})
       </h2>
       <div className="overflow-x-auto rounded-lg border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
         <table className="w-full text-left text-sm">
@@ -330,7 +356,7 @@ function InsiderTradesTable({ trades }: { trades: InsiderTrade[] }) {
   return (
     <section>
       <h2 className="mb-3 text-base font-semibold">
-        Insider trades ({trades.length})
+        Insider trades · last 30 days ({trades.length})
       </h2>
       <div className="overflow-x-auto rounded-lg border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
         <table className="w-full text-left text-sm">
@@ -376,6 +402,39 @@ function InsiderTradesTable({ trades }: { trades: InsiderTrade[] }) {
             ))}
           </tbody>
         </table>
+      </div>
+    </section>
+  );
+}
+
+function SignalScoreCard({ signal }: { signal: RankedSignal | null }) {
+  return (
+    <section>
+      <h2 className="mb-3 text-base font-semibold">Swing-trade signal</h2>
+      <div className="rounded-lg border border-neutral-200 bg-white p-4 dark:border-neutral-800 dark:bg-neutral-900">
+        {!signal ? (
+          <p className="text-sm text-neutral-500 dark:text-neutral-400">
+            No political or insider activity for this ticker in the current
+            window — score unavailable.
+          </p>
+        ) : (
+          <div className="flex flex-wrap items-center gap-4">
+            <ScoreBadge score={signal.score.score} size="md" />
+            <div className="flex flex-wrap gap-1.5">
+              {signal.score.reasons.map((r) => (
+                <span
+                  key={r}
+                  className="inline-flex rounded-full bg-neutral-100 px-2 py-0.5 text-[11px] font-medium text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300"
+                >
+                  {r}
+                </span>
+              ))}
+            </div>
+            <div className="ml-auto text-xs text-neutral-500 dark:text-neutral-400">
+              {signal.politicalCount} political · {signal.insiderCount} insider
+            </div>
+          </div>
+        )}
       </div>
     </section>
   );
