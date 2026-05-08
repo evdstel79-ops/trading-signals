@@ -14,102 +14,190 @@ export type MacroAlert = {
   triggeredAt?: string;
 };
 
-const STORAGE_KEY = "trading-signals.macro-alerts.v1";
-export const MACRO_ALERTS_UPDATED_EVENT =
-  "trading-signals:macro-alerts-updated";
-
-function genId(): string {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return crypto.randomUUID();
-  }
-  return `m_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-}
-
-export function loadMacroAlerts(): MacroAlert[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? (parsed as MacroAlert[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-export function saveMacroAlerts(alerts: MacroAlert[]): void {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(alerts));
-  window.dispatchEvent(new CustomEvent(MACRO_ALERTS_UPDATED_EVENT));
-}
-
-export function addMacroAlert(input: {
+export type NewMacroAlertInput = {
   event: string;
   date: string;
   daysBeforeAlert: number;
-}): MacroAlert {
-  const alert: MacroAlert = {
-    id: genId(),
-    event: input.event,
-    date: input.date,
-    daysBeforeAlert: input.daysBeforeAlert,
-    createdAt: new Date().toISOString(),
-  };
-  const all = loadMacroAlerts();
-  all.push(alert);
-  saveMacroAlerts(all);
-  return alert;
+};
+
+const LEGACY_STORAGE_KEY = "trading-signals.macro-alerts.v1";
+const MIGRATION_FLAG = "trading-signals.macro-alerts.migrated.v1";
+const API_URL = "/api/macro-alerts";
+
+export const MACRO_ALERTS_UPDATED_EVENT =
+  "trading-signals:macro-alerts-updated";
+
+function notifyUpdated(): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent(MACRO_ALERTS_UPDATED_EVENT));
 }
 
-export function removeMacroAlert(id: string): MacroAlert[] {
-  const next = loadMacroAlerts().filter((a) => a.id !== id);
-  saveMacroAlerts(next);
-  return next;
-}
+type ListResponse = { alerts: MacroAlert[] } | { error: string };
+type SingleResponse = { alert: MacroAlert } | { error: string };
 
-export function markMacroAlertTriggered(id: string): MacroAlert[] {
-  const all = loadMacroAlerts();
-  const target = all.find((a) => a.id === id);
-  if (target && !target.triggeredAt) {
-    target.triggeredAt = new Date().toISOString();
-    saveMacroAlerts(all);
+async function expectAlerts(res: Response): Promise<MacroAlert[]> {
+  const data = (await res.json()) as ListResponse;
+  if (!res.ok || "error" in data) {
+    throw new Error("error" in data ? data.error : `HTTP ${res.status}`);
   }
-  return all;
+  return data.alerts;
 }
 
-export function useMacroAlerts() {
+async function expectAlert(res: Response): Promise<MacroAlert> {
+  const data = (await res.json()) as SingleResponse;
+  if (!res.ok || "error" in data) {
+    throw new Error("error" in data ? data.error : `HTTP ${res.status}`);
+  }
+  return data.alert;
+}
+
+export async function loadMacroAlerts(): Promise<MacroAlert[]> {
+  const res = await fetch(API_URL, { cache: "no-store" });
+  return expectAlerts(res);
+}
+
+export async function addMacroAlert(
+  input: NewMacroAlertInput,
+): Promise<MacroAlert> {
+  const res = await fetch(API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  const created = await expectAlert(res);
+  notifyUpdated();
+  return created;
+}
+
+export async function removeMacroAlert(id: string): Promise<void> {
+  const res = await fetch(`${API_URL}?id=${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(data.error ?? `HTTP ${res.status}`);
+  }
+  notifyUpdated();
+}
+
+export async function markMacroAlertTriggered(id: string): Promise<MacroAlert> {
+  const res = await fetch(API_URL, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id, triggeredAt: new Date().toISOString() }),
+  });
+  const updated = await expectAlert(res);
+  notifyUpdated();
+  return updated;
+}
+
+async function migrateLegacyToApi(): Promise<void> {
+  if (typeof window === "undefined") return;
+  let store: Storage;
+  try {
+    store = window.localStorage;
+  } catch {
+    return;
+  }
+  if (store.getItem(MIGRATION_FLAG) === "1") return;
+
+  const raw = store.getItem(LEGACY_STORAGE_KEY);
+  if (!raw) {
+    store.setItem(MIGRATION_FLAG, "1");
+    return;
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    store.setItem(MIGRATION_FLAG, "1");
+    return;
+  }
+  if (!Array.isArray(parsed)) {
+    store.setItem(MIGRATION_FLAG, "1");
+    return;
+  }
+
+  for (const entry of parsed) {
+    if (!entry || typeof entry !== "object") continue;
+    try {
+      await fetch(API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(entry),
+      });
+    } catch {
+      // best-effort
+    }
+  }
+  try {
+    store.removeItem(LEGACY_STORAGE_KEY);
+  } catch {
+    // ignore
+  }
+  store.setItem(MIGRATION_FLAG, "1");
+}
+
+export type MacroAlertsState = {
+  alerts: MacroAlert[];
+  mounted: boolean;
+  error: string | null;
+  add: (input: NewMacroAlertInput) => Promise<MacroAlert>;
+  remove: (id: string) => Promise<void>;
+};
+
+export function useMacroAlerts(): MacroAlertsState {
   const [alerts, setAlerts] = useState<MacroAlert[]>([]);
   const [mounted, setMounted] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setAlerts(loadMacroAlerts());
-    setMounted(true);
-    const refresh = () => setAlerts(loadMacroAlerts());
-    window.addEventListener(MACRO_ALERTS_UPDATED_EVENT, refresh);
-    const onStorage = (e: StorageEvent) => {
-      if (e.key === STORAGE_KEY) refresh();
+    let cancelled = false;
+
+    async function refresh(): Promise<void> {
+      try {
+        const next = await loadMacroAlerts();
+        if (!cancelled) {
+          setAlerts(next);
+          setError(null);
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setError(
+            e instanceof Error ? e.message : "Failed to load macro alerts",
+          );
+        }
+      } finally {
+        if (!cancelled) setMounted(true);
+      }
+    }
+
+    (async () => {
+      await migrateLegacyToApi();
+      if (cancelled) return;
+      await refresh();
+    })();
+
+    const onUpdate = (): void => {
+      void refresh();
     };
-    window.addEventListener("storage", onStorage);
+    window.addEventListener(MACRO_ALERTS_UPDATED_EVENT, onUpdate);
     return () => {
-      window.removeEventListener(MACRO_ALERTS_UPDATED_EVENT, refresh);
-      window.removeEventListener("storage", onStorage);
+      cancelled = true;
+      window.removeEventListener(MACRO_ALERTS_UPDATED_EVENT, onUpdate);
     };
   }, []);
 
-  function add(input: {
-    event: string;
-    date: string;
-    daysBeforeAlert: number;
-  }): MacroAlert {
-    const created = addMacroAlert(input);
-    setAlerts(loadMacroAlerts());
+  async function add(input: NewMacroAlertInput): Promise<MacroAlert> {
+    const created = await addMacroAlert(input);
+    setAlerts((prev) => [created, ...prev]);
     return created;
   }
 
-  function remove(id: string): void {
-    removeMacroAlert(id);
-    setAlerts(loadMacroAlerts());
+  async function remove(id: string): Promise<void> {
+    await removeMacroAlert(id);
+    setAlerts((prev) => prev.filter((a) => a.id !== id));
   }
 
-  return { alerts, add, remove, mounted };
+  return { alerts, add, remove, mounted, error };
 }

@@ -80,12 +80,17 @@ export default function AlertsPage() {
       }
     }
 
-    add({
-      ticker: cleanTicker,
-      condition,
-      targetPrice: price,
-      email: email.trim() || undefined,
-    });
+    try {
+      await add({
+        ticker: cleanTicker,
+        condition,
+        targetPrice: price,
+        email: email.trim() || undefined,
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create alert");
+      return;
+    }
     setTicker("");
     setTargetPrice("");
     setCondition("above");

@@ -41,7 +41,7 @@ export default function MacroAlertButton({
   }, [open]);
 
   function handlePick(days: number) {
-    add({ event, date, daysBeforeAlert: days });
+    void add({ event, date, daysBeforeAlert: days });
     setOpen(false);
   }
 

@@ -12,7 +12,7 @@ import {
   loadPaperTrades,
   type PaperTrade,
 } from "@/lib/paperTrades";
-import { loadAlerts, saveAlerts, type PriceAlert } from "@/lib/priceAlerts";
+import { loadAlerts, markTriggered, type PriceAlert } from "@/lib/priceAlerts";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -30,14 +30,16 @@ export default function AlertsManager() {
     async function tick() {
       if (cancelled) return;
       try {
-        // Macro alerts don't need any network call.
-        processMacroAlerts(loadMacroAlerts());
+        const [priceAlerts, macroAlerts, paperTrades] = await Promise.all([
+          loadAlerts().catch((): PriceAlert[] => []),
+          loadMacroAlerts().catch((): MacroAlert[] => []),
+          loadPaperTrades().catch((): PaperTrade[] => []),
+        ]);
 
-        const activeAlerts = loadAlerts().filter((a) => !a.triggeredAt);
-        const allPaperTrades = await loadPaperTrades().catch(
-          (): PaperTrade[] => [],
-        );
-        const slTpTrades = allPaperTrades.filter(
+        await processMacroAlerts(macroAlerts);
+
+        const activeAlerts = priceAlerts.filter((a) => !a.triggeredAt);
+        const slTpTrades = paperTrades.filter(
           (t) => !t.closedAt && (t.stopLoss != null || t.takeProfit != null),
         );
 
@@ -50,7 +52,7 @@ export default function AlertsManager() {
         if (tickers.length === 0) return;
 
         const res = await fetch(
-          `/api/quotes?tickers=${encodeURIComponent(tickers.join(","))}`,
+          `/api/quotes?lite=1&tickers=${encodeURIComponent(tickers.join(","))}`,
           { cache: "no-store" },
         );
         if (!res.ok) return;
@@ -58,28 +60,23 @@ export default function AlertsManager() {
         const quotes = data.quotes ?? {};
 
         // Price alerts.
-        if (activeAlerts.length > 0) {
-          const all = loadAlerts();
-          let changed = false;
-          const now = new Date().toISOString();
-          for (const alert of all) {
-            if (alert.triggeredAt) continue;
-            const quote = quotes[alert.ticker];
-            if (!quote) continue;
-            if (didTriggerAlert(alert, quote.price)) {
-              alert.triggeredAt = now;
-              changed = true;
-              fireAlertBrowserNotification(alert, quote.price);
-              fireEmail(alert);
-              addNotification({
-                ticker: alert.ticker,
-                condition: alert.condition,
-                targetPrice: alert.targetPrice,
-                triggeredPrice: quote.price,
-              });
-            }
+        for (const alert of activeAlerts) {
+          const quote = quotes[alert.ticker];
+          if (!quote) continue;
+          if (!didTriggerAlert(alert, quote.price)) continue;
+          try {
+            await markTriggered(alert.id);
+          } catch {
+            continue;
           }
-          if (changed) saveAlerts(all);
+          fireAlertBrowserNotification(alert, quote.price);
+          fireEmail(alert);
+          await addNotification({
+            ticker: alert.ticker,
+            condition: alert.condition,
+            targetPrice: alert.targetPrice,
+            triggeredPrice: quote.price,
+          }).catch(() => {});
         }
 
         // Paper-trade stop-loss / take-profit.
@@ -94,12 +91,12 @@ export default function AlertsManager() {
             // If the close API fails we'll re-evaluate on the next tick.
             continue;
           }
-          addNotification({
+          await addNotification({
             ticker: trade.ticker,
             condition: trigger.condition,
             targetPrice: trigger.level,
             triggeredPrice: quote.price,
-          });
+          }).catch(() => {});
           firePaperTradeBrowserNotification(
             trade.ticker,
             trigger.condition,
@@ -185,7 +182,7 @@ function fireAlertBrowserNotification(alert: PriceAlert, price: number): void {
   }
 }
 
-function processMacroAlerts(alerts: MacroAlert[]): void {
+async function processMacroAlerts(alerts: MacroAlert[]): Promise<void> {
   const now = Date.now();
   for (const alert of alerts) {
     if (alert.triggeredAt) continue;
@@ -196,20 +193,24 @@ function processMacroAlerts(alerts: MacroAlert[]): void {
     // Don't fire alerts whose event is already in the past — that's a stale
     // record the user didn't get to in time.
     if (eventTs < now) {
-      markMacroAlertTriggered(alert.id);
+      await markMacroAlertTriggered(alert.id).catch(() => {});
       continue;
     }
     const daysLeft = Math.max(0, Math.round((eventTs - now) / DAY_MS));
-    markMacroAlertTriggered(alert.id);
+    try {
+      await markMacroAlertTriggered(alert.id);
+    } catch {
+      continue;
+    }
     fireMacroBrowserNotification(alert, daysLeft);
-    addNotification({
+    await addNotification({
       ticker: "MACRO",
       condition: "macro",
       targetPrice: alert.daysBeforeAlert,
       triggeredPrice: daysLeft,
       eventName: alert.event,
       eventDate: alert.date,
-    });
+    }).catch(() => {});
   }
 }
 

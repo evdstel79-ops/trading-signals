@@ -14,110 +14,206 @@ export type PriceAlert = {
   email?: string;
 };
 
-const STORAGE_KEY = "trading-signals.price-alerts.v1";
-
-// In-tab cross-component sync: AlertsManager dispatches this when it mutates
-// the alert list (e.g. setting triggeredAt) so any open page re-reads.
-const UPDATE_EVENT = "trading-signals:price-alerts-updated";
-
-function genId(): string {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return crypto.randomUUID();
-  }
-  return `a_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-}
-
-export function loadAlerts(): PriceAlert[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? (parsed as PriceAlert[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-export function saveAlerts(alerts: PriceAlert[]): void {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(alerts));
-  window.dispatchEvent(new CustomEvent(UPDATE_EVENT));
-}
-
-export function addAlert(input: {
+export type NewPriceAlertInput = {
   ticker: string;
   condition: AlertCondition;
   targetPrice: number;
   email?: string;
-}): PriceAlert {
-  const email = input.email?.trim();
-  const alert: PriceAlert = {
-    id: genId(),
+};
+
+const LEGACY_STORAGE_KEY = "trading-signals.price-alerts.v1";
+const MIGRATION_FLAG = "trading-signals.price-alerts.migrated.v1";
+const API_URL = "/api/price-alerts";
+
+// In-tab cross-component sync. Components dispatch this after mutations so
+// hooks elsewhere on the page re-fetch.
+const UPDATE_EVENT = "trading-signals:price-alerts-updated";
+
+function notifyUpdated(): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent(UPDATE_EVENT));
+}
+
+type ListResponse = { alerts: PriceAlert[] } | { error: string };
+type SingleResponse = { alert: PriceAlert } | { error: string };
+
+async function expectAlerts(res: Response): Promise<PriceAlert[]> {
+  const data = (await res.json()) as ListResponse;
+  if (!res.ok || "error" in data) {
+    throw new Error("error" in data ? data.error : `HTTP ${res.status}`);
+  }
+  return data.alerts;
+}
+
+async function expectAlert(res: Response): Promise<PriceAlert> {
+  const data = (await res.json()) as SingleResponse;
+  if (!res.ok || "error" in data) {
+    throw new Error("error" in data ? data.error : `HTTP ${res.status}`);
+  }
+  return data.alert;
+}
+
+export async function loadAlerts(): Promise<PriceAlert[]> {
+  const res = await fetch(API_URL, { cache: "no-store" });
+  return expectAlerts(res);
+}
+
+export async function addAlert(input: NewPriceAlertInput): Promise<PriceAlert> {
+  const payload = {
     ticker: input.ticker.trim().toUpperCase(),
     condition: input.condition,
     targetPrice: input.targetPrice,
-    createdAt: new Date().toISOString(),
-    ...(email ? { email } : {}),
+    ...(input.email?.trim() ? { email: input.email.trim() } : {}),
   };
-  const all = loadAlerts();
-  all.push(alert);
-  saveAlerts(all);
-  return alert;
+  const res = await fetch(API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const created = await expectAlert(res);
+  notifyUpdated();
+  return created;
 }
 
-export function removeAlert(id: string): PriceAlert[] {
-  const next = loadAlerts().filter((a) => a.id !== id);
-  saveAlerts(next);
-  return next;
-}
-
-export function markTriggered(id: string): PriceAlert[] {
-  const all = loadAlerts();
-  const target = all.find((a) => a.id === id);
-  if (target && !target.triggeredAt) {
-    target.triggeredAt = new Date().toISOString();
-    saveAlerts(all);
+export async function removeAlert(id: string): Promise<void> {
+  const res = await fetch(`${API_URL}?id=${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(data.error ?? `HTTP ${res.status}`);
   }
-  return all;
+  notifyUpdated();
 }
 
-export function useAlerts() {
+export async function markTriggered(id: string): Promise<PriceAlert> {
+  const res = await fetch(API_URL, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id, triggeredAt: new Date().toISOString() }),
+  });
+  const updated = await expectAlert(res);
+  notifyUpdated();
+  return updated;
+}
+
+async function migrateLegacyToApi(): Promise<void> {
+  if (typeof window === "undefined") return;
+  let store: Storage;
+  try {
+    store = window.localStorage;
+  } catch {
+    return;
+  }
+  if (store.getItem(MIGRATION_FLAG) === "1") return;
+
+  const raw = store.getItem(LEGACY_STORAGE_KEY);
+  if (!raw) {
+    store.setItem(MIGRATION_FLAG, "1");
+    return;
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    store.setItem(MIGRATION_FLAG, "1");
+    return;
+  }
+  if (!Array.isArray(parsed)) {
+    store.setItem(MIGRATION_FLAG, "1");
+    return;
+  }
+
+  for (const entry of parsed) {
+    if (!entry || typeof entry !== "object") continue;
+    try {
+      await fetch(API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(entry),
+      });
+    } catch {
+      // best-effort
+    }
+  }
+  try {
+    store.removeItem(LEGACY_STORAGE_KEY);
+  } catch {
+    // ignore
+  }
+  store.setItem(MIGRATION_FLAG, "1");
+}
+
+export type PriceAlertsState = {
+  alerts: PriceAlert[];
+  /** True once the initial fetch has settled. */
+  mounted: boolean;
+  error: string | null;
+  refresh: () => Promise<void>;
+  add: (input: NewPriceAlertInput) => Promise<PriceAlert>;
+  remove: (id: string) => Promise<void>;
+};
+
+export function useAlerts(): PriceAlertsState {
   const [alerts, setAlerts] = useState<PriceAlert[]>([]);
   const [mounted, setMounted] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setAlerts(loadAlerts());
-    setMounted(true);
+    let cancelled = false;
 
-    const refresh = () => setAlerts(loadAlerts());
-    window.addEventListener(UPDATE_EVENT, refresh);
-    // Cross-tab sync.
-    const onStorage = (e: StorageEvent) => {
-      if (e.key === STORAGE_KEY) refresh();
+    async function refresh(): Promise<void> {
+      try {
+        const next = await loadAlerts();
+        if (!cancelled) {
+          setAlerts(next);
+          setError(null);
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setError(e instanceof Error ? e.message : "Failed to load alerts");
+        }
+      } finally {
+        if (!cancelled) setMounted(true);
+      }
+    }
+
+    (async () => {
+      await migrateLegacyToApi();
+      if (cancelled) return;
+      await refresh();
+    })();
+
+    const onUpdate = (): void => {
+      void refresh();
     };
-    window.addEventListener("storage", onStorage);
+    window.addEventListener(UPDATE_EVENT, onUpdate);
     return () => {
-      window.removeEventListener(UPDATE_EVENT, refresh);
-      window.removeEventListener("storage", onStorage);
+      cancelled = true;
+      window.removeEventListener(UPDATE_EVENT, onUpdate);
     };
   }, []);
 
-  function add(input: {
-    ticker: string;
-    condition: AlertCondition;
-    targetPrice: number;
-    email?: string;
-  }): PriceAlert {
-    const created = addAlert(input);
-    setAlerts(loadAlerts());
+  async function add(input: NewPriceAlertInput): Promise<PriceAlert> {
+    const created = await addAlert(input);
+    setAlerts((prev) => [created, ...prev]);
     return created;
   }
 
-  function remove(id: string): void {
-    removeAlert(id);
-    setAlerts(loadAlerts());
+  async function remove(id: string): Promise<void> {
+    await removeAlert(id);
+    setAlerts((prev) => prev.filter((a) => a.id !== id));
   }
 
-  return { alerts, add, remove, mounted };
+  async function refresh(): Promise<void> {
+    try {
+      const next = await loadAlerts();
+      setAlerts(next);
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to load alerts");
+    }
+  }
+
+  return { alerts, add, remove, mounted, error, refresh };
 }

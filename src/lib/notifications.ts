@@ -24,98 +24,187 @@ export type AppNotification = {
   eventDate?: string;
 };
 
-const STORAGE_KEY = "trading-signals.notifications.v1";
-export const NOTIFICATIONS_UPDATED_EVENT =
-  "trading-signals:notifications-updated";
-
-function genId(): string {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return crypto.randomUUID();
-  }
-  return `n_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-}
-
-export function loadNotifications(): AppNotification[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? (parsed as AppNotification[]) : [];
-  } catch {
-    return [];
-  }
-}
-
-export function saveNotifications(notifications: AppNotification[]): void {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(notifications));
-  window.dispatchEvent(new CustomEvent(NOTIFICATIONS_UPDATED_EVENT));
-}
-
-export function addNotification(input: {
+export type NewNotificationInput = {
   ticker: string;
   condition: NotificationCondition;
   targetPrice: number;
   triggeredPrice: number;
   eventName?: string;
   eventDate?: string;
-}): AppNotification {
-  const notification: AppNotification = {
-    id: genId(),
-    ticker: input.ticker.trim().toUpperCase(),
-    condition: input.condition,
-    targetPrice: input.targetPrice,
-    triggeredPrice: input.triggeredPrice,
-    triggeredAt: new Date().toISOString(),
-    read: false,
-    ...(input.eventName ? { eventName: input.eventName } : {}),
-    ...(input.eventDate ? { eventDate: input.eventDate } : {}),
-  };
-  const all = loadNotifications();
-  all.unshift(notification);
-  saveNotifications(all);
-  return notification;
+};
+
+const LEGACY_STORAGE_KEY = "trading-signals.notifications.v1";
+const MIGRATION_FLAG = "trading-signals.notifications.migrated.v1";
+const API_URL = "/api/notifications";
+
+export const NOTIFICATIONS_UPDATED_EVENT =
+  "trading-signals:notifications-updated";
+
+function notifyUpdated(): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent(NOTIFICATIONS_UPDATED_EVENT));
 }
 
-export function markAllRead(): AppNotification[] {
-  const all = loadNotifications();
-  let changed = false;
-  for (const n of all) {
-    if (!n.read) {
-      n.read = true;
-      changed = true;
+type ListResponse = { notifications: AppNotification[] } | { error: string };
+type SingleResponse = { notification: AppNotification } | { error: string };
+
+async function expectList(res: Response): Promise<AppNotification[]> {
+  const data = (await res.json()) as ListResponse;
+  if (!res.ok || "error" in data) {
+    throw new Error("error" in data ? data.error : `HTTP ${res.status}`);
+  }
+  return data.notifications;
+}
+
+async function expectOne(res: Response): Promise<AppNotification> {
+  const data = (await res.json()) as SingleResponse;
+  if (!res.ok || "error" in data) {
+    throw new Error("error" in data ? data.error : `HTTP ${res.status}`);
+  }
+  return data.notification;
+}
+
+export async function loadNotifications(): Promise<AppNotification[]> {
+  const res = await fetch(API_URL, { cache: "no-store" });
+  return expectList(res);
+}
+
+export async function addNotification(
+  input: NewNotificationInput,
+): Promise<AppNotification> {
+  const payload = {
+    ...input,
+    ticker: input.ticker.trim().toUpperCase(),
+  };
+  const res = await fetch(API_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const created = await expectOne(res);
+  notifyUpdated();
+  return created;
+}
+
+export async function markAllRead(): Promise<void> {
+  const res = await fetch(API_URL, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ markAllRead: true }),
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(data.error ?? `HTTP ${res.status}`);
+  }
+  notifyUpdated();
+}
+
+export async function clearNotifications(): Promise<void> {
+  const res = await fetch(API_URL, { method: "DELETE" });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(data.error ?? `HTTP ${res.status}`);
+  }
+  notifyUpdated();
+}
+
+async function migrateLegacyToApi(): Promise<void> {
+  if (typeof window === "undefined") return;
+  let store: Storage;
+  try {
+    store = window.localStorage;
+  } catch {
+    return;
+  }
+  if (store.getItem(MIGRATION_FLAG) === "1") return;
+
+  const raw = store.getItem(LEGACY_STORAGE_KEY);
+  if (!raw) {
+    store.setItem(MIGRATION_FLAG, "1");
+    return;
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    store.setItem(MIGRATION_FLAG, "1");
+    return;
+  }
+  if (!Array.isArray(parsed)) {
+    store.setItem(MIGRATION_FLAG, "1");
+    return;
+  }
+
+  for (const entry of parsed) {
+    if (!entry || typeof entry !== "object") continue;
+    try {
+      await fetch(API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(entry),
+      });
+    } catch {
+      // best-effort
     }
   }
-  if (changed) saveNotifications(all);
-  return all;
+  try {
+    store.removeItem(LEGACY_STORAGE_KEY);
+  } catch {
+    // ignore
+  }
+  store.setItem(MIGRATION_FLAG, "1");
 }
 
-export function clearNotifications(): void {
-  saveNotifications([]);
-}
+export type NotificationsState = {
+  notifications: AppNotification[];
+  unreadCount: number;
+  mounted: boolean;
+  error: string | null;
+};
 
-export function useNotifications() {
+export function useNotifications(): NotificationsState {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [mounted, setMounted] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setNotifications(loadNotifications());
-    setMounted(true);
+    let cancelled = false;
 
-    const refresh = () => setNotifications(loadNotifications());
-    window.addEventListener(NOTIFICATIONS_UPDATED_EVENT, refresh);
-    const onStorage = (e: StorageEvent) => {
-      if (e.key === STORAGE_KEY) refresh();
+    async function refresh(): Promise<void> {
+      try {
+        const next = await loadNotifications();
+        if (!cancelled) {
+          setNotifications(next);
+          setError(null);
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setError(
+            e instanceof Error ? e.message : "Failed to load notifications",
+          );
+        }
+      } finally {
+        if (!cancelled) setMounted(true);
+      }
+    }
+
+    (async () => {
+      await migrateLegacyToApi();
+      if (cancelled) return;
+      await refresh();
+    })();
+
+    const onUpdate = (): void => {
+      void refresh();
     };
-    window.addEventListener("storage", onStorage);
+    window.addEventListener(NOTIFICATIONS_UPDATED_EVENT, onUpdate);
     return () => {
-      window.removeEventListener(NOTIFICATIONS_UPDATED_EVENT, refresh);
-      window.removeEventListener("storage", onStorage);
+      cancelled = true;
+      window.removeEventListener(NOTIFICATIONS_UPDATED_EVENT, onUpdate);
     };
   }, []);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
-  return { notifications, unreadCount, mounted };
+  return { notifications, unreadCount, mounted, error };
 }

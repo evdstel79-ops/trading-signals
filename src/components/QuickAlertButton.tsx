@@ -74,7 +74,7 @@ export default function QuickAlertButton({
     };
   }, [open]);
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     const price = parseFloat(targetPrice);
@@ -90,12 +90,19 @@ export default function QuickAlertButton({
       // localStorage unavailable; create alert without email.
     }
 
-    addAlert({
-      ticker,
-      condition,
-      targetPrice: price,
-      email: email?.trim() || undefined,
-    });
+    try {
+      await addAlert({
+        ticker,
+        condition,
+        targetPrice: price,
+        email: email?.trim() || undefined,
+      });
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to create alert",
+      );
+      return;
+    }
 
     setSuccess(true);
     setTimeout(() => {
