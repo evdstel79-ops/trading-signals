@@ -27,6 +27,11 @@ const navGroups: NavGroup[] = [
         description: "Latest signals across all sources",
       },
       {
+        href: "/news",
+        label: "News",
+        description: "Latest headlines for your watchlist",
+      },
+      {
         href: "/signals",
         label: "Signals",
         description: "Tickers ranked by signal strength",

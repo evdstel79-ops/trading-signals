@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import AlertsQuickCount from "@/components/AlertsQuickCount";
+import NewsQuickCount from "@/components/NewsQuickCount";
 import PersonalSummaryCard from "@/components/PersonalSummaryCard";
 import TickerLink from "@/components/TickerLink";
 import { fetchInsiderTrades, type InsiderTrade } from "@/lib/insiderSignals";
@@ -154,6 +155,12 @@ export default async function DashboardPage() {
             icon="🔔"
             title="Alerts"
             subtitle={<AlertsQuickCount />}
+          />
+          <QuickAccessCard
+            href="/news"
+            icon="📰"
+            title="News"
+            subtitle={<NewsQuickCount />}
           />
         </div>
       </section>
