@@ -11,7 +11,7 @@ import {
 } from "@/lib/politicalSignals";
 import { fetchQuotes } from "@/lib/quotes";
 
-export const revalidate = 1800;
+export const revalidate = 300;
 
 const TOP_TICKERS_LIMIT = 5;
 const TOP_POLITICIANS_LIMIT = 5;

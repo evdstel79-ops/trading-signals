@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { Suspense } from "react";
 import "./globals.css";
 import AlertsManager from "@/components/AlertsManager";
 import LayoutShell from "@/components/LayoutShell";
@@ -54,7 +55,20 @@ export default function RootLayout({
         <ThemeProvider>
           <ServiceWorkerRegistration />
           <AlertsManager />
-          <LayoutShell>{children}</LayoutShell>
+          <LayoutShell>
+            <Suspense
+              fallback={
+                <div className="flex items-center justify-center py-24">
+                  <div
+                    className="h-8 w-8 animate-spin rounded-full border-2 border-neutral-200 border-t-emerald-600 dark:border-neutral-800 dark:border-t-emerald-400"
+                    aria-label="Loading"
+                  />
+                </div>
+              }
+            >
+              {children}
+            </Suspense>
+          </LayoutShell>
         </ThemeProvider>
       </body>
     </html>

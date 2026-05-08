@@ -7,7 +7,7 @@ import {
 } from "@/lib/politicalSignals";
 import { detectCorrelations } from "@/lib/tradeCorrelation";
 
-export const revalidate = 1800;
+export const revalidate = 300;
 
 export default async function CorrelationsPage() {
   let trades: PoliticalTrade[] = [];

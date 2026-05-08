@@ -12,7 +12,7 @@ import {
 } from "@/lib/politicalSignals";
 import { fetchQuotes } from "@/lib/quotes";
 
-export const revalidate = 1800;
+export const revalidate = 300;
 
 type ExtendedTotal = SectorTotal & {
   netSentiment: number;

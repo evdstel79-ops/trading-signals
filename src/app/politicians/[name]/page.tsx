@@ -8,7 +8,7 @@ import {
 } from "@/lib/politicalSignals";
 import { fetchQuotes, type Quote } from "@/lib/quotes";
 
-export const revalidate = 1800;
+export const revalidate = 300;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const RETURN_AGE_DAYS = 30;
