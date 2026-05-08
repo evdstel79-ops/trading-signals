@@ -9,6 +9,10 @@ export type PaperTrade = {
   note: string;
   addedAt: string;
   source?: "political" | "insider" | "manual";
+  /** ISO timestamp when the trade was closed. Absent on open positions. */
+  closedAt?: string;
+  /** Price at which the trade was closed. Absent on open positions. */
+  exitPrice?: number;
 };
 
 const STORAGE_KEY = "trading-signals.paper-trades.v1";
@@ -53,10 +57,43 @@ export function deletePaperTrade(id: string): PaperTrade[] {
   return remaining;
 }
 
+export function closePaperTrade(id: string, exitPrice: number): PaperTrade[] {
+  const closedAt = new Date().toISOString();
+  const updated = loadPaperTrades().map((t) =>
+    t.id === id && !t.closedAt ? { ...t, closedAt, exitPrice } : t,
+  );
+  savePaperTrades(updated);
+  return updated;
+}
+
 export function computePnL(
   trade: Pick<PaperTrade, "direction" | "entryPrice" | "quantity">,
   currentPrice: number,
 ): number {
   const sign = trade.direction === "buy" ? 1 : -1;
   return sign * (currentPrice - trade.entryPrice) * trade.quantity;
+}
+
+/**
+ * Effective mark price for a trade: exit price if closed, otherwise the supplied
+ * live price. Returns null when the trade is open and no live price is available.
+ */
+export function effectivePrice(
+  trade: PaperTrade,
+  currentPrice: number | null,
+): number | null {
+  if (typeof trade.exitPrice === "number") return trade.exitPrice;
+  return currentPrice;
+}
+
+/**
+ * Realized or unrealized P&L for a single trade. Returns null when the trade is
+ * open and the live price isn't available yet.
+ */
+export function tradePnL(
+  trade: PaperTrade,
+  currentPrice: number | null,
+): number | null {
+  const price = effectivePrice(trade, currentPrice);
+  return price === null ? null : computePnL(trade, price);
 }

@@ -1,11 +1,16 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import PortfolioChart, {
+  type PortfolioPoint,
+} from "@/components/PortfolioChart";
 import TickerLink from "@/components/TickerLink";
 import {
-  computePnL,
+  closePaperTrade,
   deletePaperTrade,
+  effectivePrice,
   loadPaperTrades,
+  tradePnL,
   type PaperTrade,
 } from "@/lib/paperTrades";
 
@@ -26,6 +31,7 @@ export default function PaperTradingPage() {
   const [quotes, setQuotes] = useState<Record<string, Quote | null>>({});
   const [quotesLoading, setQuotesLoading] = useState(false);
   const [quotesError, setQuotesError] = useState<string | null>(null);
+  const [closingId, setClosingId] = useState<string | null>(null);
 
   useEffect(() => {
     setTrades(loadPaperTrades());
@@ -33,8 +39,14 @@ export default function PaperTradingPage() {
 
   useEffect(() => {
     if (!trades || trades.length === 0) return;
-    const tickers = Array.from(new Set(trades.map((t) => t.ticker))).filter(
-      Boolean,
+    // Quotes are only needed for open positions — closed trades are marked at exitPrice.
+    const tickers = Array.from(
+      new Set(
+        trades
+          .filter((t) => !t.closedAt)
+          .map((t) => t.ticker)
+          .filter(Boolean),
+      ),
     );
     if (tickers.length === 0) return;
 
@@ -68,39 +80,46 @@ export default function PaperTradingPage() {
     setTrades(deletePaperTrade(id));
   }
 
-  const summary = useMemo(() => {
-    if (!trades || trades.length === 0) {
-      return { totalPnl: 0, openPositions: 0, biggestWin: null, biggestLoss: null };
-    }
-    let totalPnl = 0;
-    let biggestWin: { trade: PaperTrade; pnl: number } | null = null;
-    let biggestLoss: { trade: PaperTrade; pnl: number } | null = null;
-    let anyPriced = false;
-
-    for (const t of trades) {
-      const q = quotes[t.ticker];
-      if (!q) continue;
-      anyPriced = true;
-      const pnl = computePnL(t, q.price);
-      totalPnl += pnl;
-      if (pnl > 0 && (!biggestWin || pnl > biggestWin.pnl)) {
-        biggestWin = { trade: t, pnl };
+  async function handleClose(trade: PaperTrade) {
+    if (!confirm(`Close ${trade.ticker} at the current market price?`)) return;
+    setClosingId(trade.id);
+    try {
+      const res = await fetch(
+        `/api/quotes?tickers=${encodeURIComponent(trade.ticker)}`,
+      );
+      const data = (await res.json()) as QuotesResponse;
+      const quote = data.quotes?.[trade.ticker];
+      if (!quote) {
+        alert(
+          `Could not fetch a current price for ${trade.ticker}. Try again in a moment.`,
+        );
+        return;
       }
-      if (pnl < 0 && (!biggestLoss || pnl < biggestLoss.pnl)) {
-        biggestLoss = { trade: t, pnl };
-      }
+      setTrades(closePaperTrade(trade.id, quote.price));
+    } catch (e) {
+      alert(
+        `Failed to close position: ${e instanceof Error ? e.message : "unknown error"}`,
+      );
+    } finally {
+      setClosingId(null);
     }
+  }
 
-    return {
-      totalPnl: anyPriced ? totalPnl : null,
-      openPositions: trades.length,
-      biggestWin,
-      biggestLoss,
-    };
-  }, [trades, quotes]);
+  const analytics = useMemo(() => computeAnalytics(trades, quotes), [trades, quotes]);
+  const portfolioSeries = useMemo(
+    () => buildPortfolioSeries(trades, quotes),
+    [trades, quotes],
+  );
+
+  const openTrades = (trades ?? [])
+    .filter((t) => !t.closedAt)
+    .sort((a, b) => (a.addedAt < b.addedAt ? 1 : -1));
+  const closedTrades = (trades ?? [])
+    .filter((t) => !!t.closedAt)
+    .sort((a, b) => ((a.closedAt ?? "") < (b.closedAt ?? "") ? 1 : -1));
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       <header>
         <h1 className="text-2xl font-semibold tracking-tight">Paper Trading</h1>
         <p className="mt-1 text-sm text-neutral-600 dark:text-neutral-400">
@@ -109,52 +128,99 @@ export default function PaperTradingPage() {
         </p>
       </header>
 
-      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <SummaryCard
+          label="Total invested"
+          value={
+            analytics.totalInvested === null
+              ? "—"
+              : currencyFmt.format(analytics.totalInvested)
+          }
+          hint={`${trades?.length ?? 0} trades total`}
+        />
+        <SummaryCard
+          label="Current value"
+          value={
+            analytics.currentValue === null
+              ? "—"
+              : currencyFmt.format(analytics.currentValue)
+          }
+          hint={
+            quotesLoading
+              ? "Refreshing prices…"
+              : `${analytics.openCount} open · ${analytics.closedCount} closed`
+          }
+        />
         <SummaryCard
           label="Total P&L"
           value={
-            summary.totalPnl === null
+            analytics.totalPnl === null
               ? "—"
-              : currencyFmt.format(summary.totalPnl)
+              : `${currencyFmt.format(analytics.totalPnl)}${
+                  analytics.totalPnlPct === null
+                    ? ""
+                    : ` (${analytics.totalPnlPct >= 0 ? "+" : ""}${analytics.totalPnlPct.toFixed(2)}%)`
+                }`
           }
           tone={
-            summary.totalPnl === null
+            analytics.totalPnl === null
               ? "neutral"
-              : summary.totalPnl > 0
+              : analytics.totalPnl > 0
                 ? "positive"
-                : summary.totalPnl < 0
+                : analytics.totalPnl < 0
                   ? "negative"
                   : "neutral"
           }
-          hint={quotesLoading ? "Refreshing prices…" : "Across all positions"}
+          hint="Realized + unrealized"
         />
         <SummaryCard
-          label="Open positions"
-          value={String(summary.openPositions)}
-          tone="neutral"
-          hint="Saved paper trades"
-        />
-        <SummaryCard
-          label="Biggest winner"
+          label="Win rate"
           value={
-            summary.biggestWin
-              ? `${summary.biggestWin.trade.ticker} ${currencyFmt.format(summary.biggestWin.pnl)}`
+            analytics.winRate === null
+              ? "—"
+              : `${analytics.winRate.toFixed(0)}%`
+          }
+          hint={
+            analytics.evaluatedCount > 0
+              ? `${analytics.winningCount} of ${analytics.evaluatedCount} positive`
+              : "Not enough data"
+          }
+        />
+        <SummaryCard
+          label="Best position"
+          value={
+            analytics.bestPosition
+              ? `${analytics.bestPosition.ticker} ${formatPct(
+                  analytics.bestPosition.pnlPct,
+                )}`
               : "—"
           }
-          tone={summary.biggestWin ? "positive" : "neutral"}
-          hint={summary.biggestWin?.trade.ticker ?? "No winners yet"}
+          tone={analytics.bestPosition ? "positive" : "neutral"}
+          hint={
+            analytics.bestPosition
+              ? currencyFmt.format(analytics.bestPosition.pnl)
+              : "No winners yet"
+          }
         />
         <SummaryCard
-          label="Biggest loser"
+          label="Worst position"
           value={
-            summary.biggestLoss
-              ? `${summary.biggestLoss.trade.ticker} ${currencyFmt.format(summary.biggestLoss.pnl)}`
+            analytics.worstPosition
+              ? `${analytics.worstPosition.ticker} ${formatPct(
+                  analytics.worstPosition.pnlPct,
+                )}`
               : "—"
           }
-          tone={summary.biggestLoss ? "negative" : "neutral"}
-          hint={summary.biggestLoss?.trade.ticker ?? "No losses yet"}
+          tone={analytics.worstPosition ? "negative" : "neutral"}
+          hint={
+            analytics.worstPosition
+              ? currencyFmt.format(analytics.worstPosition.pnl)
+              : "No losses yet"
+          }
         />
       </section>
+
+      <PortfolioChart data={portfolioSeries} />
 
       {quotesError && (
         <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
@@ -162,23 +228,88 @@ export default function PaperTradingPage() {
         </div>
       )}
 
+      <PositionsTable
+        title="Open positions"
+        trades={openTrades}
+        loading={trades === null}
+        emptyMessage={
+          trades !== null && openTrades.length === 0
+            ? "No open positions. Open a paper trade from the Political Trades or SEC Insider Trades pages."
+            : null
+        }
+        showClose
+        closingId={closingId}
+        quotes={quotes}
+        quotesLoading={quotesLoading}
+        onDelete={handleDelete}
+        onClose={handleClose}
+      />
+
+      {closedTrades.length > 0 && (
+        <PositionsTable
+          title="Closed positions"
+          trades={closedTrades}
+          loading={false}
+          emptyMessage={null}
+          showClose={false}
+          closingId={null}
+          quotes={quotes}
+          quotesLoading={false}
+          onDelete={handleDelete}
+          onClose={undefined}
+        />
+      )}
+    </div>
+  );
+}
+
+function PositionsTable({
+  title,
+  trades,
+  loading,
+  emptyMessage,
+  showClose,
+  closingId,
+  quotes,
+  quotesLoading,
+  onDelete,
+  onClose,
+}: {
+  title: string;
+  trades: PaperTrade[];
+  loading: boolean;
+  emptyMessage: string | null;
+  showClose: boolean;
+  closingId: string | null;
+  quotes: Record<string, Quote | null>;
+  quotesLoading: boolean;
+  onDelete: (id: string) => void;
+  onClose: ((trade: PaperTrade) => void) | undefined;
+}) {
+  return (
+    <section>
+      <h2 className="mb-3 text-base font-semibold">
+        {title} ({trades.length})
+      </h2>
       <div className="overflow-x-auto rounded-lg border border-neutral-200 bg-white dark:border-neutral-800 dark:bg-neutral-900">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-neutral-200 bg-neutral-50 text-xs uppercase tracking-wide text-neutral-500 dark:border-neutral-800 dark:bg-neutral-950 dark:text-neutral-400">
             <tr>
-              <th className="px-4 py-3 font-medium">Date added</th>
+              <th className="px-4 py-3 font-medium">Date</th>
               <th className="px-4 py-3 font-medium">Ticker</th>
               <th className="px-4 py-3 font-medium">Direction</th>
               <th className="px-4 py-3 text-right font-medium">Quantity</th>
               <th className="px-4 py-3 text-right font-medium">Entry</th>
-              <th className="px-4 py-3 text-right font-medium">Current</th>
+              <th className="px-4 py-3 text-right font-medium">
+                {showClose ? "Current" : "Exit"}
+              </th>
               <th className="px-4 py-3 text-right font-medium">P&amp;L</th>
               <th className="px-4 py-3 font-medium">Note</th>
               <th className="px-4 py-3" />
             </tr>
           </thead>
           <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800">
-            {trades === null && (
+            {loading && (
               <tr>
                 <td
                   colSpan={9}
@@ -188,29 +319,29 @@ export default function PaperTradingPage() {
                 </td>
               </tr>
             )}
-            {trades && trades.length === 0 && (
+            {emptyMessage && (
               <tr>
                 <td
                   colSpan={9}
                   className="px-4 py-12 text-center text-sm text-neutral-500 dark:text-neutral-400"
                 >
-                  No paper trades yet. Open one from the Political Trades or SEC
-                  Insider Trades pages.
+                  {emptyMessage}
                 </td>
               </tr>
             )}
-            {trades?.map((t) => {
-              const quote = quotes[t.ticker];
-              const currentPrice = quote?.price ?? null;
-              const pnl =
-                currentPrice !== null ? computePnL(t, currentPrice) : null;
+            {trades.map((t) => {
+              const live = quotes[t.ticker];
+              const livePrice = live?.price ?? null;
+              const markPrice = effectivePrice(t, livePrice);
+              const pnl = tradePnL(t, livePrice);
+              const dateStr = t.closedAt ?? t.addedAt;
               return (
                 <tr
                   key={t.id}
                   className="hover:bg-neutral-50 dark:hover:bg-neutral-800/50"
                 >
                   <td className="px-4 py-3 text-neutral-600 dark:text-neutral-400">
-                    {new Date(t.addedAt).toLocaleDateString("en-US", {
+                    {new Date(dateStr).toLocaleDateString("en-US", {
                       year: "numeric",
                       month: "short",
                       day: "numeric",
@@ -229,14 +360,14 @@ export default function PaperTradingPage() {
                     {currencyFmt.format(t.entryPrice)}
                   </td>
                   <td className="px-4 py-3 text-right font-mono text-xs">
-                    {currentPrice === null ? (
+                    {markPrice === null ? (
                       quotesLoading ? (
                         <span className="inline-block h-3 w-16 animate-pulse rounded bg-neutral-200 dark:bg-neutral-800" />
                       ) : (
                         "—"
                       )
                     ) : (
-                      currencyFmt.format(currentPrice)
+                      currencyFmt.format(markPrice)
                     )}
                   </td>
                   <td
@@ -260,13 +391,25 @@ export default function PaperTradingPage() {
                     )}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    <button
-                      type="button"
-                      onClick={() => handleDelete(t.id)}
-                      className="inline-flex min-h-[44px] items-center justify-center rounded-md px-2 py-1 text-xs text-neutral-500 hover:bg-red-50 hover:text-red-700 dark:text-neutral-400 dark:hover:bg-red-950/40 dark:hover:text-red-300 lg:min-h-0"
-                    >
-                      Delete
-                    </button>
+                    <div className="inline-flex items-center gap-1">
+                      {showClose && onClose && (
+                        <button
+                          type="button"
+                          onClick={() => onClose(t)}
+                          disabled={closingId === t.id}
+                          className="inline-flex min-h-[44px] items-center justify-center rounded-md px-2 py-1 text-xs text-neutral-700 hover:bg-emerald-50 hover:text-emerald-700 disabled:opacity-60 dark:text-neutral-300 dark:hover:bg-emerald-950/40 dark:hover:text-emerald-300 lg:min-h-0"
+                        >
+                          {closingId === t.id ? "Closing…" : "Close"}
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => onDelete(t.id)}
+                        className="inline-flex min-h-[44px] items-center justify-center rounded-md px-2 py-1 text-xs text-neutral-500 hover:bg-red-50 hover:text-red-700 dark:text-neutral-400 dark:hover:bg-red-950/40 dark:hover:text-red-300 lg:min-h-0"
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </td>
                 </tr>
               );
@@ -274,20 +417,20 @@ export default function PaperTradingPage() {
           </tbody>
         </table>
       </div>
-    </div>
+    </section>
   );
 }
 
 function SummaryCard({
   label,
   value,
-  tone,
+  tone = "neutral",
   hint,
 }: {
   label: string;
   value: string;
-  tone: "positive" | "negative" | "neutral";
-  hint: string;
+  tone?: "positive" | "negative" | "neutral";
+  hint?: string;
 }) {
   const valueColor =
     tone === "positive"
@@ -303,9 +446,11 @@ function SummaryCard({
       <div className={`mt-2 truncate text-2xl font-semibold ${valueColor}`}>
         {value}
       </div>
-      <div className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
-        {hint}
-      </div>
+      {hint && (
+        <div className="mt-1 text-xs text-neutral-500 dark:text-neutral-400">
+          {hint}
+        </div>
+      )}
     </div>
   );
 }
@@ -322,4 +467,137 @@ function DirectionBadge({ direction }: { direction: PaperTrade["direction"] }) {
       {direction}
     </span>
   );
+}
+
+function formatPct(pct: number): string {
+  return `${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%`;
+}
+
+type Analytics = {
+  totalInvested: number | null;
+  currentValue: number | null;
+  totalPnl: number | null;
+  totalPnlPct: number | null;
+  openCount: number;
+  closedCount: number;
+  winRate: number | null;
+  winningCount: number;
+  evaluatedCount: number;
+  bestPosition: { ticker: string; pnl: number; pnlPct: number } | null;
+  worstPosition: { ticker: string; pnl: number; pnlPct: number } | null;
+};
+
+function computeAnalytics(
+  trades: PaperTrade[] | null,
+  quotes: Record<string, Quote | null>,
+): Analytics {
+  if (!trades || trades.length === 0) {
+    return {
+      totalInvested: trades === null ? null : 0,
+      currentValue: trades === null ? null : 0,
+      totalPnl: trades === null ? null : 0,
+      totalPnlPct: null,
+      openCount: 0,
+      closedCount: 0,
+      winRate: null,
+      winningCount: 0,
+      evaluatedCount: 0,
+      bestPosition: null,
+      worstPosition: null,
+    };
+  }
+
+  let totalInvested = 0;
+  let currentValue = 0;
+  let totalPnl = 0;
+  let openCount = 0;
+  let closedCount = 0;
+  let winningCount = 0;
+  let evaluatedCount = 0;
+  let best: { ticker: string; pnl: number; pnlPct: number } | null = null;
+  let worst: { ticker: string; pnl: number; pnlPct: number } | null = null;
+  let anyValuePriced = true;
+
+  for (const t of trades) {
+    if (t.closedAt) closedCount++;
+    else openCount++;
+
+    const invested = t.entryPrice * t.quantity;
+    totalInvested += invested;
+
+    const livePrice = quotes[t.ticker]?.price ?? null;
+    const mark = effectivePrice(t, livePrice);
+    if (mark === null) {
+      anyValuePriced = false;
+      continue;
+    }
+
+    currentValue += mark * t.quantity;
+    const pnl = tradePnL(t, livePrice);
+    if (pnl === null) continue;
+    totalPnl += pnl;
+    evaluatedCount++;
+    if (pnl > 0) winningCount++;
+
+    const pnlPct = invested > 0 ? (pnl / invested) * 100 : 0;
+    if (!best || pnlPct > best.pnlPct) best = { ticker: t.ticker, pnl, pnlPct };
+    if (!worst || pnlPct < worst.pnlPct) worst = { ticker: t.ticker, pnl, pnlPct };
+  }
+
+  const totalPnlPct =
+    totalInvested > 0 ? (totalPnl / totalInvested) * 100 : null;
+  const winRate =
+    evaluatedCount > 0 ? (winningCount / evaluatedCount) * 100 : null;
+
+  return {
+    totalInvested,
+    currentValue: anyValuePriced ? currentValue : null,
+    totalPnl: anyValuePriced ? totalPnl : null,
+    totalPnlPct: anyValuePriced ? totalPnlPct : null,
+    openCount,
+    closedCount,
+    winRate,
+    winningCount,
+    evaluatedCount,
+    bestPosition: best && best.pnl > 0 ? best : null,
+    worstPosition: worst && worst.pnl < 0 ? worst : null,
+  };
+}
+
+function buildPortfolioSeries(
+  trades: PaperTrade[] | null,
+  quotes: Record<string, Quote | null>,
+): PortfolioPoint[] {
+  if (!trades || trades.length === 0) return [];
+
+  // Each trade contributes its current mark-to-market value to the cumulative
+  // chart, attributed to its entry date.
+  const sorted = [...trades].sort((a, b) =>
+    a.addedAt < b.addedAt ? -1 : a.addedAt > b.addedAt ? 1 : 0,
+  );
+
+  const uniqueDates: string[] = [];
+  const seen = new Set<string>();
+  for (const t of sorted) {
+    const day = t.addedAt.slice(0, 10);
+    if (!seen.has(day)) {
+      uniqueDates.push(day);
+      seen.add(day);
+    }
+  }
+
+  const points: PortfolioPoint[] = [];
+  for (const date of uniqueDates) {
+    const cutoff = `${date}T23:59:59.999Z`;
+    let value = 0;
+    for (const t of sorted) {
+      if (t.addedAt > cutoff) continue;
+      const livePrice = quotes[t.ticker]?.price ?? null;
+      const mark = effectivePrice(t, livePrice);
+      if (mark === null) continue;
+      value += mark * t.quantity;
+    }
+    points.push({ date, value });
+  }
+  return points;
 }
